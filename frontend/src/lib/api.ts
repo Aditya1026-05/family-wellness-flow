@@ -177,7 +177,18 @@ export const api = {
       return request<CareTask[]>(`/tasks${q ? `?${q}` : ''}`);
     },
     get: (id: string) => request<CareTask>(`/tasks/${id}`),
-    create: (data: { name: string; category: string; parentId?: string; parentIds?: string[]; time: string; endTime?: string; repeat?: string; notes?: string }) =>
+    create: (data: {
+      name: string;
+      category: string;
+      parentId?: string;
+      parentIds?: string[];
+      time: string;
+      endTime?: string;
+      repeat?: string;
+      notes?: string;
+      ring_alarm?: boolean;
+      ringAlarm?: boolean;
+    }) =>
       request<CareTask>('/tasks', {
         method: 'POST',
         body: JSON.stringify({
@@ -190,9 +201,22 @@ export const api = {
           repeat_pattern: data.repeat || 'Daily',
           notes: data.notes,
           detail: data.notes,
+          ring_alarm: Boolean(data.ring_alarm ?? data.ringAlarm),
+          ringAlarm: Boolean(data.ring_alarm ?? data.ringAlarm),
         }),
       }),
-    update: (id: string, data: { name?: string; category?: string; parentId?: string; parentIds?: string[]; time?: string; endTime?: string; repeat?: string; notes?: string }) =>
+    update: (id: string, data: {
+      name?: string;
+      category?: string;
+      parentId?: string;
+      parentIds?: string[];
+      time?: string;
+      endTime?: string;
+      repeat?: string;
+      notes?: string;
+      ring_alarm?: boolean;
+      ringAlarm?: boolean;
+    }) =>
       request<CareTask>(`/tasks/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -205,6 +229,8 @@ export const api = {
           repeat_pattern: data.repeat,
           notes: data.notes,
           detail: data.notes,
+          ring_alarm: data.ring_alarm !== undefined ? data.ring_alarm : data.ringAlarm,
+          ringAlarm: data.ringAlarm !== undefined ? data.ringAlarm : data.ring_alarm,
         }),
       }),
     delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),

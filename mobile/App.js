@@ -231,16 +231,17 @@ export default function App() {
         body: JSON.stringify({
           token: token,
           platform: Platform.OS,
-          role: 'parent',
-          device_name: Device.modelName || 'iPhone',
-          family_id: 1,
-          parent_id: 1,
+          role: 'both',
+          device_name: Device.modelName || 'Companion Device',
         }),
       });
 
       if (res.ok) {
         setIsRegistered(true);
-        setStatusMessage('Synced with CareCircle Backend');
+        setStatusMessage('Synced with CareCircle Backend (Live Alarms Active)');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.log('Registration response status:', res.status, data);
       }
     } catch (err) {
       console.log('Backend sync note:', err.message);

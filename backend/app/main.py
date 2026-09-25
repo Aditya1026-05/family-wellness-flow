@@ -14,7 +14,21 @@ async def lifespan(app: FastAPI):
             seed_initial_data(db)
     except Exception as e:
         print(f"Startup seed notice: {e}")
+
+    # Start the background reminder & escalation poller scheduler
+    try:
+        from services_runtime.scheduler.runner import start_scheduler, stop_scheduler
+        start_scheduler()
+    except Exception as e:
+        print(f"Startup scheduler notice: {e}")
+
     yield
+
+    try:
+        from services_runtime.scheduler.runner import stop_scheduler
+        stop_scheduler()
+    except Exception:
+        pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
