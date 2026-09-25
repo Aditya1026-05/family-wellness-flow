@@ -21,7 +21,7 @@ import {
 import { AlertTriangle, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { type CareTask, type Parent, type Category } from './data';
-import { cn, copyToClipboard } from '@/lib/utils';
+import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/utils';
 import { api } from '@/lib/api';
 
 function formatTimeTo24h(timeStr?: string): string {
@@ -434,6 +434,8 @@ export function ParentInviteModal({
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [shared, setShared] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
@@ -478,37 +480,31 @@ export function ParentInviteModal({
     }
   };
 
-  const downloadQR = () => {
-    const svg = document.querySelector('#modal-invite-qr svg');
+  const downloadQR = async () => {
+    const svg = document.querySelector('#modal-invite-qr svg') as SVGElement | null;
     if (!svg) return;
-    const blob = new Blob([new XMLSerializer().serializeToString(svg)], {
-      type: 'image/svg+xml',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `carecircle-${parent.name.toLowerCase().replace(/\s+/g, '-')}-qr.svg`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const ok = await downloadSvgAsPng(
+      svg,
+      `carecircle-${parent.name.toLowerCase().replace(/\s+/g, '-')}-qr`
+    );
+    if (ok) {
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2000);
+    }
   };
 
   const shareInvite = async () => {
     if (!inviteData) return;
     const inviteMessage = `Join my CareCircle family! Scan the QR code or enter short code: ${inviteData.code}`;
-    if (navigator.share) {
-      await navigator
-        .share({
-          title: 'Join CareCircle',
-          text: inviteMessage,
-          url: inviteData.qr_value,
-        })
-        .catch(() => {});
-    } else {
-      const ok = await copyToClipboard(`${inviteMessage}\n${inviteData.qr_value}`);
-      if (ok) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
+    const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/parent/scan?code=${inviteData.code}` : undefined;
+    const res = await shareOrCopyInvite({
+      title: 'Join CareCircle',
+      text: inviteMessage,
+      url: joinUrl,
+    });
+    if (res === 'shared' || res === 'copied') {
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
     }
   };
 
@@ -582,10 +578,26 @@ export function ParentInviteModal({
 
             <div className="flex flex-wrap justify-center gap-2 pt-1">
               <Button variant="outline" size="sm" onClick={downloadQR}>
-                <Download className="size-4 mr-1.5" /> Download QR
+                {downloaded ? (
+                  <>
+                    <Check className="size-4 mr-1.5 text-success" /> Downloaded!
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-4 mr-1.5" /> Download QR
+                  </>
+                )}
               </Button>
               <Button size="sm" onClick={shareInvite}>
-                <Share2 className="size-4 mr-1.5" /> Share invite
+                {shared ? (
+                  <>
+                    <Check className="size-4 mr-1.5 text-white" /> Invite copied!
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="size-4 mr-1.5" /> Share invite
+                  </>
+                )}
               </Button>
               <Button
                 variant="ghost"
