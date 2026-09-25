@@ -1,22 +1,102 @@
 import { Link, useRouterState } from '@tanstack/react-router';
-import { Bell, CalendarDays, Check, ChevronRight, CircleHelp, ClipboardList, Clock3, Heart, Home, LogOut, Pencil, Plus, QrCode, Settings, ShieldCheck, Trash2, Users, UserRound, Utensils, Pill, Footprints, Droplets, type LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  CircleHelp,
+  ClipboardList,
+  Clock3,
+  HeartHandshake,
+  Home,
+  Info,
+  LogOut,
+  Pencil,
+  Plus,
+  QrCode,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Users,
+  UserRound,
+  Utensils,
+  Pill,
+  Footprints,
+  Droplets,
+  type LucideIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type CareTask, type Parent, type CareAlert, type TaskStatus } from './data';
 import { useCareStore } from './store';
+import { api, getCurrentUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 export const navItems = [
-  { label: 'Dashboard', to: '/dashboard', icon: Home }, { label: 'Parents', to: '/parents', icon: Users },
-  { label: 'Tasks', to: '/tasks', icon: ClipboardList }, { label: 'Alerts', to: '/alerts', icon: Bell }, { label: 'Profile', to: '/profile', icon: UserRound },
+  { label: 'Dashboard', to: '/dashboard', icon: Home },
+  { label: 'Parents', to: '/parents', icon: Users },
+  { label: 'Tasks', to: '/tasks', icon: ClipboardList },
+  { label: 'Alerts', to: '/alerts', icon: Bell },
+  { label: 'Profile', to: '/profile', icon: UserRound },
 ] as const;
-export function Brand({ compact = false }: { compact?: boolean }) { return <Link to="/" className="inline-flex items-center gap-3 font-extrabold text-foreground" aria-label="CareCircle home"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"><Heart className="size-5 fill-current" strokeWidth={2.4}/></span>{!compact && <span className="text-xl">CareCircle</span>}</Link>; }
-export function Avatar({ parent, size = 'normal' }: { parent: Parent; size?: 'normal' | 'large' }) { return <span className={cn('grid shrink-0 place-items-center rounded-full font-bold text-foreground', parent.color === 'peach' ? 'bg-peach' : parent.color === 'mint' ? 'bg-mint' : 'bg-lavender', size === 'large' ? 'size-16 text-xl' : 'size-12 text-sm')}>{parent.initials}</span>; }
-import { api, getCurrentUser } from '@/lib/api';
 
-export function ChildShell({ children, title, subtitle, action }: { children: React.ReactNode; title: string; subtitle?: string; action?: React.ReactNode }) {
-  const path = useRouterState({ select: s => s.location.pathname }); const alerts = useCareStore(s => s.alerts);
+export function Brand({ compact = false, light = false }: { compact?: boolean; light?: boolean }) {
+  return (
+    <Link to="/" className="focus-ring inline-flex items-center gap-3 rounded-xl" aria-label="CareCircle home">
+      <span className={cn('grid size-9 place-items-center rounded-xl transition', light ? 'bg-white/12 text-white' : 'bg-primary/10 text-primary')}>
+        <HeartHandshake className="size-5" strokeWidth={2.4} />
+      </span>
+      {!compact && (
+        <span className={cn('text-[18px] font-bold tracking-[-0.02em]', light ? 'text-white' : 'text-foreground')}>
+          CareCircle
+        </span>
+      )}
+    </Link>
+  );
+}
+
+export function Avatar({
+  parent,
+  size = 'normal',
+}: {
+  parent: Parent | { name: string; initials?: string; color?: string };
+  size?: 'small' | 'normal' | 'large';
+}) {
+  const initials = parent.initials || parent.name?.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase() || 'P';
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full font-bold',
+        parent.color === 'peach'
+          ? 'bg-peach text-foreground'
+          : parent.color === 'mint'
+          ? 'bg-mint text-foreground'
+          : parent.color === 'lavender'
+          ? 'bg-lavender text-foreground'
+          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200',
+        size === 'large' ? 'size-16 text-xl' : size === 'small' ? 'size-8 text-xs' : 'size-11 text-sm'
+      )}
+    >
+      {initials}
+    </span>
+  );
+}
+
+export function ChildShell({
+  children,
+  title,
+  subtitle,
+  action,
+}: {
+  children: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  const path = useRouterState({ select: s => s.location.pathname });
+  const alerts = useCareStore(s => s.alerts);
   const currentUser = getCurrentUser();
   const displayName = currentUser?.full_name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Family Admin');
   const initials = displayName.split(' ').map((p: string) => p[0]).slice(0, 2).join('').toUpperCase() || 'FA';
@@ -25,68 +105,247 @@ export function ChildShell({ children, title, subtitle, action }: { children: Re
     useCareStore.getState().reset();
   };
 
-  return <div className="min-h-dvh bg-background lg:flex">
-    <aside className="hidden w-64 shrink-0 border-r bg-sidebar px-5 py-8 lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-dvh"><div className="px-3"><Brand /></div><div className="mt-12 px-3 text-xs font-bold uppercase text-muted-foreground">Workspace</div><nav className="mt-4 space-y-1" aria-label="Main navigation">{navItems.map(item => <NavItem key={item.to} {...item} active={path === item.to || (item.to === '/parents' && path.startsWith('/parents/')) || (item.to === '/tasks' && path.startsWith('/tasks/'))} count={item.label === 'Alerts' ? alerts.length : undefined}/>)}</nav><div className="mt-auto border-t pt-6"><div className="flex items-center gap-3 px-3"><div className="grid size-10 place-items-center rounded-full bg-info-soft font-bold text-primary">{initials}</div><div><div className="text-sm font-bold">{displayName}</div><div className="text-xs text-muted-foreground">Family admin</div></div></div><Link to="/" onClick={logout} className="mt-5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted"><LogOut className="size-4"/> {currentUser?.email === 'aditya@example.com' ? 'Leave demo' : 'Sign out'}</Link></div></aside>
-    <div className="min-w-0 flex-1">
-      <header className="sticky top-0 z-20 hidden h-20 items-center justify-between border-b bg-card px-8 lg:flex">
-        <div className="text-sm text-muted-foreground">Family workspace <ChevronRight className="inline size-4"/> <span className="font-semibold text-foreground">{title}</span></div>
-        <div className="flex items-center gap-4">
-          <Link to="/alerts" className="relative grid size-10 place-items-center rounded-full bg-muted" aria-label={`${alerts.length} alerts`}>
-            <Bell className="size-5"/>
-            {alerts.length > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-destructive"/>}
+  const todayDateFormatted = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(new Date());
+
+  return (
+    <div className="app-grain min-h-[100dvh] bg-background lg:flex">
+      {/* Sleek Dark Navy Sidebar matching CareCircle aesthetic */}
+      <aside className="hidden w-64 shrink-0 flex-col bg-sidebar px-4 py-6 text-sidebar-foreground lg:flex lg:sticky lg:top-0 lg:h-dvh border-r border-sidebar-border">
+        <div className="px-2">
+          <Brand light />
+        </div>
+        <div className="mt-10 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-sidebar-foreground/55">
+          Family care
+        </div>
+        <nav className="mt-3 space-y-1" aria-label="Main navigation">
+          {navItems.map(item => {
+            const isActive = path === item.to || (item.to !== '/dashboard' && path.startsWith(`${item.to}/`));
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-white'
+                )}
+              >
+                <item.icon className="size-4.5" />
+                <span>{item.label}</span>
+                {item.label === 'Alerts' && alerts.length > 0 && (
+                  <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-900">
+                    {alerts.length}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent/60 p-4">
+          <ShieldCheck className="size-4.5 text-blue-300" />
+          <p className="mt-3 text-sm font-semibold text-white">A calmer care routine</p>
+          <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70">
+            Small updates keep everyone close, even from a distance.
+          </p>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3 border-t border-sidebar-border pt-5 px-1">
+          <div className="grid size-9 place-items-center rounded-full bg-blue-500/20 text-blue-300 font-bold text-xs">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+            <p className="truncate text-xs text-sidebar-foreground/60">Family coordinator</p>
+          </div>
+          <Link
+            to="/"
+            onClick={logout}
+            title={currentUser?.email === 'aditya@example.com' ? 'Leave demo' : 'Sign out'}
+            className="text-sidebar-foreground/60 hover:text-white transition p-1"
+          >
+            <LogOut className="size-4" />
           </Link>
-          <Link to="/profile" className="grid size-10 place-items-center rounded-full bg-info-soft font-semibold text-primary" aria-label="Profile">{initials}</Link>
         </div>
-      </header>
-      <div className="mx-auto max-w-[1440px] px-4 pb-28 pt-4 sm:px-8 lg:px-10 lg:pb-14 lg:pt-10">
-        <div className="mb-6 lg:hidden flex items-center justify-between">
-          <Brand />
-          <div className="flex items-center gap-2">
-            <Link to="/alerts" className="relative grid size-9 place-items-center rounded-full bg-muted text-foreground" aria-label={`${alerts.length} alerts`}>
-              <Bell className="size-4.5"/>
-              {alerts.length > 0 && <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">{alerts.length}</span>}
+      </aside>
+
+      <div className="min-w-0 flex-1">
+        {/* Top Header */}
+        <header className="sticky top-0 z-20 hidden h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-8 backdrop-blur lg:flex">
+          <div>
+            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="text-xs text-muted-foreground">Your family, in one gentle view</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/parent/home"
+              className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted"
+            >
+              <UserRound className="size-3.5" />
+              <span>Parent view</span>
             </Link>
-            <Link to="/profile" className="grid size-9 place-items-center rounded-full bg-info-soft text-xs font-bold text-primary" aria-label="Profile">{initials}</Link>
+            <Link
+              to="/alerts"
+              className="relative grid size-10 place-items-center rounded-xl bg-card border border-border hover:bg-muted transition text-foreground"
+              aria-label={`${alerts.length} alerts`}
+            >
+              <Bell className="size-4.5" />
+              {alerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-slate-900">
+                  {alerts.length}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/profile"
+              className="grid size-10 place-items-center rounded-xl bg-primary/10 font-bold text-sm text-primary hover:brightness-105 transition"
+              aria-label="Profile"
+            >
+              {initials}
+            </Link>
           </div>
-        </div>
-        <div className="mb-6 sm:mb-8 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-extrabold sm:text-3xl">{title}</h1>
-            {subtitle && <p className="mt-1 text-sm text-muted-foreground sm:text-base">{subtitle}</p>}
+        </header>
+
+        {/* Main Content */}
+        <div className="mx-auto max-w-[1440px] px-4 py-5 pb-28 sm:px-6 sm:py-7 md:px-10 md:py-10 md:pb-10 animate-rise">
+          {/* Mobile Top Header */}
+          <div className="mb-5 lg:hidden flex items-center justify-between">
+            <Brand />
+            <div className="flex items-center gap-2">
+              <Link
+                to="/parent/home"
+                className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
+              >
+                Parent view
+              </Link>
+              <Link
+                to="/alerts"
+                className="relative grid size-9 place-items-center rounded-lg bg-card border text-foreground"
+                aria-label={`${alerts.length} alerts`}
+              >
+                <Bell className="size-4" />
+                {alerts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-amber-400 text-[9px] font-bold text-slate-900">
+                    {alerts.length}
+                  </span>
+                )}
+              </Link>
+              <Link
+                to="/profile"
+                className="grid size-9 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary"
+              >
+                {initials}
+              </Link>
+            </div>
           </div>
-          {action && <div className="shrink-0">{action}</div>}
+
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[.14em] text-primary">
+                {todayDateFormatted}
+              </p>
+              <h1 className="mt-1 font-display text-2xl tracking-[-.02em] sm:text-3xl md:text-4xl text-foreground font-normal">
+                {title}
+              </h1>
+              {subtitle && <p className="mt-1 sm:mt-2 max-w-2xl text-xs sm:text-sm leading-5 sm:leading-6 text-muted-foreground">{subtitle}</p>}
+            </div>
+            {action && <div className="shrink-0 max-w-full overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">{action}</div>}
+          </div>
+
+          {children}
         </div>
-        {children}
       </div>
+
+      {/* Mobile Navigation Bar */}
+      <nav
+        aria-label="Mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 py-2 backdrop-blur lg:hidden pb-[env(safe-area-inset-bottom)]"
+      >
+        {navItems.map(item => {
+          const isActive = path === item.to || (item.to !== '/dashboard' && path.startsWith(`${item.to}/`));
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-semibold transition-colors',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <div className="relative">
+                <item.icon className="size-5" />
+                {item.label === 'Alerts' && alerts.length > 0 && (
+                  <span className="absolute -top-1 -right-2 flex size-3.5 items-center justify-center rounded-full bg-amber-400 text-[8px] font-bold text-slate-900">
+                    {alerts.length}
+                  </span>
+                )}
+              </div>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
-    <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] lg:hidden">
-      {navItems.map(item => (
-        <Link
-          key={item.to}
-          to={item.to}
-          className={cn(
-            'relative flex h-16 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors',
-            path === item.to || path.startsWith(`${item.to}/`) ? 'text-primary' : 'text-muted-foreground'
-          )}
-        >
-          <div className="relative">
-            <item.icon className="size-5"/>
-            {item.label === 'Alerts' && alerts.length > 0 && (
-              <span className="absolute -top-1 -right-2 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
-                {alerts.length}
-              </span>
-            )}
-          </div>
-          <span className="truncate">{item.label}</span>
-        </Link>
-      ))}
-    </nav>
-  </div>;
+  );
 }
-function NavItem({ label, to, icon: Icon, active, count }: { label: string; to: string; icon: LucideIcon; active: boolean; count?: number | undefined }) { return <Link to={to} className={cn('flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors', active ? 'bg-info-soft text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}><Icon className="size-5"/>{label}{count !== undefined && count > 0 && <span className="ml-auto rounded-full bg-danger-soft px-2 py-0.5 text-xs text-destructive">{count}</span>}</Link>; }
-export function SectionTitle({ title, link, to }: { title: string; link?: string | undefined; to?: '/parents' | '/tasks' | '/alerts' | undefined }) { return <div className="mb-4 flex items-center justify-between gap-4"><h2 className="text-lg font-bold sm:text-xl">{title}</h2>{link && to && <Link to={to} className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary">{link}<ChevronRight className="size-4"/></Link>}</div>; }
-export function StatusBadge({ status }: { status: TaskStatus }) { return <Badge variant="secondary" className={cn('rounded-full px-2.5 py-1 text-xs font-bold capitalize shadow-none', status === 'completed' ? 'bg-success-soft text-success' : status === 'missed' ? 'bg-danger-soft text-destructive' : 'bg-info-soft text-primary')}>{status}</Badge>; }
-export function CategoryIcon({ category }: { category: CareTask['category'] }) { const icons = { Meal: Utensils, Medicine: Pill, Exercise: Footprints, Appointment: CalendarDays, Wellness: Droplets }; const Icon = icons[category]; return <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-primary" aria-hidden="true"><Icon className="size-5"/></span>; }
+
+export function SectionTitle({
+  title,
+  link,
+  to,
+}: {
+  title: string;
+  link?: string | undefined;
+  to?: '/parents' | '/tasks' | '/alerts' | undefined;
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-4">
+      <h2 className="text-lg font-bold sm:text-xl text-foreground">{title}</h2>
+      {link && to && (
+        <Link to={to} className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline">
+          {link}
+          <ChevronRight className="size-4" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export function StatusBadge({ status }: { status: TaskStatus }) {
+  const colors = {
+    completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    missed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    snoozed: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  };
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize', colors[status] || colors.pending)}>
+      {status}
+    </span>
+  );
+}
+
+export function CategoryIcon({ category }: { category: CareTask['category'] }) {
+  const iconConfigs = {
+    Meal: { icon: Utensils, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+    Medicine: { icon: Pill, cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+    Exercise: { icon: Footprints, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
+    Appointment: { icon: CalendarDays, cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
+    Wellness: { icon: Droplets, cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+  };
+  const config = iconConfigs[category] || iconConfigs.Wellness;
+  const Icon = config.icon;
+  return (
+    <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', config.cls)} aria-hidden="true">
+      <Icon className="size-5" />
+    </span>
+  );
+}
 
 export function TaskCard({
   task,
@@ -116,39 +375,47 @@ export function TaskCard({
     : task.status !== 'completed';
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border bg-card p-3.5 sm:p-4 soft-shadow">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
+    <div className="card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-card-border bg-card p-4 transition-all hover:border-border">
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
         <CategoryIcon category={task.category}/>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="truncate font-bold text-sm sm:text-base">{task.name}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("font-semibold text-sm sm:text-base text-foreground", !hasUncompleted && "text-muted-foreground line-through")}>
+              {task.name}
+            </span>
             {isEnded && hasUncompleted && (
               <Badge variant="outline" className="border-warning/50 text-[10px] text-warning px-1.5 py-0">
                 Ended
               </Badge>
             )}
             {!hasUncompleted && completedTimeStr && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold text-success">
+              <span className="inline-flex items-center gap-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold">
                 <Check className="size-3" /> Completed {completedTimeStr}
               </span>
             )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            <span>{parentLabel}</span>
+            <span className="font-medium text-foreground/80">{parentLabel}</span>
             <span>·</span>
             <span>{timeLabel}</span>
+            {task.repeat && (
+              <>
+                <span>·</span>
+                <span>{task.repeat}</span>
+              </>
+            )}
           </div>
           {parentStatuses.length > 1 && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {parentStatuses.map(ps => (
                 <span
                   key={ps.parentId}
                   className={cn(
                     "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold",
                     ps.status === 'completed'
-                      ? 'bg-success-soft text-success'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                       : ps.status === 'missed'
-                      ? 'bg-danger-soft text-destructive'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                       : 'bg-muted text-muted-foreground'
                   )}
                 >
@@ -161,14 +428,14 @@ export function TaskCard({
           )}
         </div>
       </div>
-      <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+      <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-border/60">
         <StatusBadge status={hasUncompleted ? task.status : 'completed'}/>
-        <div className="flex items-center gap-1 sm:gap-1.5">
+        <div className="flex items-center gap-1">
           {onComplete && hasUncompleted && (
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs font-semibold text-success hover:bg-success-soft hover:text-success"
+              className="h-8 px-2.5 text-xs font-semibold text-green-700 border-green-200 hover:bg-green-50 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-950/40"
               onClick={(e) => { e.stopPropagation(); onComplete(task); }}
               title="Mark Completed (Caregiver override)"
             >
@@ -176,12 +443,26 @@ export function TaskCard({
             </Button>
           )}
           {onEdit && (
-            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={(e)=>{e.stopPropagation();onEdit(task);}} aria-label={`Edit ${task.name}`} title="Edit task">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
+              onClick={(e)=>{e.stopPropagation();onEdit(task);}}
+              aria-label={`Edit ${task.name}`}
+              title="Edit task"
+            >
               <Pencil className="size-3.5"/>
             </Button>
           )}
           {onDelete && (
-            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={(e)=>{e.stopPropagation();onDelete(task);}} aria-label={`Delete ${task.name}`} title="Delete task">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground hover:text-destructive rounded-lg"
+              onClick={(e)=>{e.stopPropagation();onDelete(task);}}
+              aria-label={`Delete ${task.name}`}
+              title="Delete task"
+            >
               <Trash2 className="size-3.5"/>
             </Button>
           )}
@@ -204,18 +485,36 @@ export function ParentCard({
   onDelete?: ((parent: Parent) => void) | undefined;
   onViewInvite?: ((parent: Parent) => void) | undefined;
 }) {
+  const status = parent.completion >= 90
+    ? { label: 'On track', tone: 'success' as const }
+    : parent.completion >= 75
+    ? { label: 'Needs attention', tone: 'warning' as const }
+    : { label: 'Needs support', tone: 'danger' as const };
+
   return (
-    <div className="rounded-xl border bg-card p-5 soft-shadow">
+    <div className="card-shadow rounded-2xl border border-card-border bg-card p-5 transition-all hover:border-border">
       <div className="flex items-start gap-4">
         <Avatar parent={parent} size="large"/>
         <div className="min-w-0 flex-1">
-          <div className="text-lg font-bold">{parent.name}</div>
+          <div className="text-lg font-bold text-foreground">{parent.name}</div>
           <div className="text-sm text-muted-foreground">{parent.relationship}</div>
         </div>
-        <span className="rounded-full bg-success-soft px-3 py-1 text-sm font-bold text-success">{parent.completion}%</span>
+        <div className="text-right">
+          <p className="text-lg font-bold text-green-600 dark:text-green-400">{parent.completion}%</p>
+          <span className={cn(
+            'inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold mt-0.5',
+            status.tone === 'success'
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+              : status.tone === 'warning'
+              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+          )}>
+            {status.label}
+          </span>
+        </div>
       </div>
       {tasks.length > 0 && (
-        <div className="mt-5 space-y-2 border-t pt-4">
+        <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
           {tasks.slice(0, 2).map(task => (
             <div key={task.id} className="flex items-center justify-between gap-2 text-xs">
               <span className="truncate text-muted-foreground">{task.name}</span>
@@ -224,14 +523,14 @@ export function ParentCard({
           ))}
         </div>
       )}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
         <span className="text-xs text-muted-foreground">Last activity · {parent.lastActivity}</span>
         <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
           {onViewInvite && (
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-muted-foreground hover:text-primary"
+              className="size-7 text-muted-foreground hover:text-primary rounded-lg"
               onClick={(e)=>{e.stopPropagation();onViewInvite(parent);}}
               aria-label={`View QR and code for ${parent.name}`}
               title="View QR & invite code"
@@ -240,28 +539,222 @@ export function ParentCard({
             </Button>
           )}
           {onEdit && (
-            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" onClick={(e)=>{e.stopPropagation();onEdit(parent);}} aria-label={`Edit ${parent.name}`} title="Edit parent">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-foreground rounded-lg"
+              onClick={(e)=>{e.stopPropagation();onEdit(parent);}}
+              aria-label={`Edit ${parent.name}`}
+              title="Edit parent"
+            >
               <Pencil className="size-3.5"/>
             </Button>
           )}
           {onDelete && (
-            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-destructive" onClick={(e)=>{e.stopPropagation();onDelete(parent);}} aria-label={`Delete ${parent.name}`} title="Delete parent">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-destructive rounded-lg"
+              onClick={(e)=>{e.stopPropagation();onDelete(parent);}}
+              aria-label={`Delete ${parent.name}`}
+              title="Delete parent"
+            >
               <Trash2 className="size-3.5"/>
             </Button>
           )}
-          <Link to="/parents/$parentId" params={{ parentId: parent.id }} className="flex items-center text-sm font-bold text-primary ml-1">
-            View <ChevronRight className="size-4"/>
+          <Link
+            to="/parents/$parentId"
+            params={{ parentId: parent.id }}
+            className="flex items-center text-sm font-semibold text-primary ml-1 hover:underline"
+          >
+            View <ChevronRight className="size-4 ml-0.5"/>
           </Link>
         </div>
       </div>
     </div>
   );
 }
-export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: () => void }) { return <div className="flex gap-4 rounded-xl border bg-card p-4 soft-shadow sm:p-5"><div className={cn('grid size-11 shrink-0 place-items-center rounded-xl', alert.priority === 'High' || alert.priority === 'Critical' ? 'bg-danger-soft text-destructive' : 'bg-warning-soft text-warning')}><Bell className="size-5"/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{alert.title}</h3><Badge variant="secondary" className={cn('rounded-full text-xs', alert.priority === 'High' || alert.priority === 'Critical' ? 'bg-danger-soft text-destructive' : 'bg-warning-soft text-warning')}>{alert.priority}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p><p className="mt-2 text-xs text-muted-foreground">{alert.time}</p></div>{onDismiss && <Button variant="ghost" size="sm" onClick={onDismiss} aria-label={`Dismiss ${alert.title}`} title="Dismiss alert"><Check/></Button>}</div>; }
-export function StatCard({ icon: Icon, label, value, note, tone = 'blue' }: { icon: LucideIcon; label: string; value: string | number; note?: string; tone?: 'blue' | 'green' | 'amber' | 'red' }) { const toneClass = { blue: 'bg-info-soft text-primary', green: 'bg-success-soft text-success', amber: 'bg-warning-soft text-warning', red: 'bg-danger-soft text-destructive' }; return <div className="rounded-xl border bg-card p-5 soft-shadow"><div className={cn('mb-5 grid size-11 place-items-center rounded-xl', toneClass[tone])}><Icon className="size-5"/></div><div className="text-3xl font-extrabold">{value}</div><div className="mt-1 text-sm font-semibold">{label}</div>{note && <div className="mt-2 text-xs text-muted-foreground">{note}</div>}</div>; }
-export function EmptyState({ icon: Icon = CircleHelp, title, description, action }: { icon?: LucideIcon; title: string; description: string; action?: React.ReactNode }) { return <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card px-6 py-16 text-center"><div className="mb-4 grid size-16 place-items-center rounded-2xl bg-info-soft text-primary"><Icon className="size-7"/></div><h3 className="text-lg font-bold">{title}</h3><p className="mt-2 max-w-xs text-sm text-muted-foreground">{description}</p>{action && <div className="mt-5">{action}</div>}</div>; }
-export function ActivityTimeline({ items }: { items: { title: string; time: string; status?: TaskStatus }[] }) { return <div className="space-y-0">{items.map((item, index) => <div key={`${item.title}-${index}`} className="flex gap-4"><div className="flex flex-col items-center"><div className={cn('z-10 grid size-9 shrink-0 place-items-center rounded-full', item.status === 'missed' ? 'bg-danger-soft text-destructive' : item.status === 'pending' ? 'bg-info-soft text-primary' : 'bg-success-soft text-success')}>{item.status === 'missed' ? <Bell className="size-4"/> : item.status === 'pending' ? <CalendarDays className="size-4"/> : <Check className="size-4"/>}</div>{index < items.length - 1 && <div className="min-h-9 w-px flex-1 bg-border"/>}</div><div className="pb-7"><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.time}</p></div></div>)}</div>; }
-export function PageSkeleton() { return <div className="space-y-4"><Skeleton className="h-10 w-1/3"/><div className="grid gap-4 sm:grid-cols-3">{[1,2,3].map(x => <Skeleton key={x} className="h-40 rounded-xl"/>)}</div></div>; }
-export function QuickAdd({ to, label }: { to: '/tasks/new' | '/parents/new'; label: string }) { return <Button asChild size="lg" className="h-11 rounded-xl"><Link to={to}><Plus className="size-4"/><span className="hidden sm:inline">{label}</span><span className="sm:hidden">Add</span></Link></Button>; }
-export function SettingsRow({ icon: Icon, title, detail, children }: { icon: LucideIcon; title: string; detail?: string; children?: React.ReactNode }) { return <div className="flex min-h-16 items-center gap-4 border-b py-4 last:border-b-0"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted"><Icon className="size-5"/></div><div className="min-w-0 flex-1"><div className="font-semibold">{title}</div>{detail && <div className="text-sm text-muted-foreground">{detail}</div>}</div>{children}</div>; }
+
+export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: () => void }) {
+  const isUrgent = alert.priority === 'High' || alert.priority === 'Critical';
+  return (
+    <div className="card-shadow flex gap-4 rounded-2xl border border-card-border bg-card p-5">
+      <div
+        className={cn(
+          'grid size-11 shrink-0 place-items-center rounded-2xl',
+          isUrgent
+            ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300'
+            : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
+        )}
+      >
+        <Bell className="size-5"/>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-bold text-foreground">{alert.title}</h3>
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+              isUrgent
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            )}
+          >
+            {alert.priority}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{alert.time}</p>
+      </div>
+      {onDismiss && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDismiss}
+          aria-label={`Dismiss ${alert.title}`}
+          title="Dismiss alert"
+          className="self-start rounded-xl text-xs font-semibold"
+        >
+          <Check className="size-3.5 mr-1"/> Resolve
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function StatCard({
+  icon: Icon,
+  label,
+  value,
+  note,
+  tone = 'blue',
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  note?: string;
+  tone?: 'blue' | 'green' | 'amber' | 'red';
+}) {
+  const toneClass = {
+    blue: 'bg-blue-100 text-primary dark:bg-blue-950/40',
+    green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  };
+
+  return (
+    <div className="card-shadow rounded-2xl border border-card-border bg-card p-3.5 sm:p-5 flex flex-col justify-between">
+      <div className="flex items-center justify-between gap-1">
+        <p className="text-xs sm:text-sm font-semibold text-foreground truncate">{label}</p>
+        <span className={cn('grid size-7 sm:size-9 place-items-center rounded-lg sm:rounded-xl shrink-0', toneClass[tone])}>
+          <Icon className="size-3.5 sm:size-4.5" />
+        </span>
+      </div>
+      <p className="mt-2 sm:mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{value}</p>
+      {note && <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-muted-foreground truncate">{note}</p>}
+    </div>
+  );
+}
+
+export function EmptyState({
+  icon: Icon = Sparkles,
+  title,
+  description,
+  action,
+}: {
+  icon?: LucideIcon;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
+      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-blue-50 text-primary dark:bg-blue-950/40">
+        <Sparkles className="size-5" />
+      </div>
+      <h3 className="font-semibold text-foreground text-base">{title}</h3>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+export function ActivityTimeline({ items }: { items: { title: string; time: string; status?: TaskStatus }[] }) {
+  return (
+    <div className="space-y-4">
+      {items.map((item, index) => {
+        const isPositive = item.status === 'completed' || item.title.toLowerCase().includes('completed');
+        return (
+          <div key={`${item.title}-${index}`} className="flex gap-3.5 items-start">
+            <span
+              className={cn(
+                'mt-0.5 grid size-8 shrink-0 place-items-center rounded-full',
+                isPositive
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              )}
+            >
+              {isPositive ? <Check className="size-4" /> : <Info className="size-4" />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm leading-5 font-medium text-foreground">{item.title}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{item.time}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function PageSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-1/3" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[1, 2, 3].map(x => (
+          <Skeleton key={x} className="h-40 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function QuickAdd({ to, label }: { to: '/tasks/new' | '/parents/new'; label: string }) {
+  return (
+    <Button asChild size="lg" className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:brightness-105">
+      <Link to={to}>
+        <Plus className="size-4 mr-1.5" />
+        <span className="hidden sm:inline">{label}</span>
+        <span className="sm:hidden">Add</span>
+      </Link>
+    </Button>
+  );
+}
+
+export function SettingsRow({
+  icon: Icon,
+  title,
+  detail,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  detail?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-16 items-center gap-4 border-b border-border/60 py-4 last:border-b-0">
+      <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+        <Icon className="size-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold text-foreground">{title}</div>
+        {detail && <div className="text-sm text-muted-foreground">{detail}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export { Settings, ShieldCheck };

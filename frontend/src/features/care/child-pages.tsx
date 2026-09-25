@@ -41,7 +41,19 @@ export function DashboardPage() {
 
   return (
     <ChildShell title={`Good morning, ${firstName}`} subtitle="Here's how your family is doing today." action={<QuickAdd to="/tasks/new" label="New task"/>}>
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
+        <div className="relative overflow-hidden rounded-2xl bg-primary p-5 text-white shadow-lg shadow-blue-500/15 col-span-2 sm:col-span-2 xl:col-span-1">
+          <div className="absolute -right-10 -top-12 size-40 rounded-full bg-white/10" />
+          <div className="relative">
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-100">Family rhythm</p>
+            <p className="mt-3 text-4xl font-bold tracking-tight">{tasks.length ? `${Math.round(completed / tasks.length * 100)}%` : '100%'}</p>
+            <p className="mt-1 text-sm text-blue-100">average adherence</p>
+            <div className="mt-4 flex items-center gap-2 text-xs font-medium text-blue-50">
+              <CheckCircle2 className="size-4" />
+              {missed > 0 ? `${missed} task${missed > 1 ? 's' : ''} need attention` : 'A steady day so far'}
+            </div>
+          </div>
+        </div>
         <StatCard icon={Users} label="Parents" value={parents.length} note="In your circle"/>
         <StatCard icon={TrendingUp} label="Completion rate" value={tasks.length ? `${Math.round(completed / tasks.length * 100)}%` : '0%'} note="Today's progress" tone="green"/>
         <StatCard icon={ClipboardList} label="Active tasks" value={tasks.filter(t => t.status === 'pending').length} note="Still to do today" tone="amber"/>
@@ -97,7 +109,7 @@ export function DashboardPage() {
           </section>
           <section>
             <SectionTitle title="Recent activity"/>
-            <div className="rounded-xl border bg-card p-5 soft-shadow">
+            <div className="rounded-2xl border border-card-border bg-card p-5 card-shadow">
               {tasks.filter(t => t.status === 'completed').length ? (
                 <ActivityTimeline items={tasks.filter(t => t.status === 'completed').slice(0,4).map(t => {
                   const p = parents.find(parent => parent.id === t.parentId || t.parentIds?.includes(parent.id));
@@ -215,7 +227,7 @@ export function AddParentPage() {
   const generate=async(e:React.FormEvent)=>{e.preventDefault(); const parent=await addParent(name.trim(),relationship); setCode(parent.invite_code || `carecircle://join/${parent.id}`); setShortCode(parent.short_code || '');};
   const download=()=>{ const svg=document.querySelector('#invite-qr svg'); if(!svg)return; const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'}); const url=URL.createObjectURL(blob); const link=document.createElement('a');link.href=url;link.download=`carecircle-${name.toLowerCase().replace(/\s+/g,'-')}.svg`;link.click();URL.revokeObjectURL(url);};
   const share=async()=>{ const inviteMessage = `Join my CareCircle family! Scan the QR code or enter code: ${shortCode}`; if(navigator.share) await navigator.share({title:'Join my CareCircle',text:inviteMessage,url:code}).catch(()=>{});else if(navigator.clipboard) await navigator.clipboard.writeText(`${inviteMessage}\n${code}`);};
-  return <ChildShell title="Add a parent" subtitle="A simple way to bring your family together."><div className="max-w-xl"><div className="rounded-xl border bg-card p-6 soft-shadow sm:p-8">{!code ? <form onSubmit={generate} className="space-y-6"><div><Label htmlFor="parent-name">Parent name</Label><Input id="parent-name" placeholder="e.g. Meera Tayal" value={name} onChange={e=>setName(e.target.value)} required className="mt-2 h-12"/></div><div><Label htmlFor="relationship">Relationship</Label><Select value={relationship} onValueChange={setRelationship}><SelectTrigger id="relationship" className="mt-2 h-12"><SelectValue/></SelectTrigger><SelectContent>{['Mom','Dad','Grandmother','Grandfather','Other'].map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><Button type="submit" size="lg" className="h-12 w-full">Generate QR code & Short code</Button></form> : <div className="text-center"><div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-success-soft text-success"><CheckCircle2/></div><h2 className="text-xl font-bold">Invite {name}</h2><p className="mt-2 text-sm text-muted-foreground">Have {name} scan this QR code or enter the short code below in the parent app.</p><div id="invite-qr" className="mx-auto my-7 w-fit rounded-xl border bg-card p-5"><QRCodeSVG value={code} size={200} fgColor="#2563eb" bgColor="#ffffff"/></div>{shortCode && <div className="mx-auto my-6 max-w-sm rounded-xl border border-primary/20 bg-primary/5 p-4 text-center"><div className="text-xs font-bold uppercase tracking-wider text-primary">Option 2: 6-Character Short Code</div><p className="mt-1 text-xs text-muted-foreground">Your parent can also manually type this code in the parent app instead of scanning:</p><div className="my-3 flex items-center justify-center gap-2"><span className="rounded-lg border bg-card px-4 py-2 font-mono text-2xl font-black tracking-widest text-primary shadow-sm select-all">{shortCode}</span><Button type="button" variant="outline" size="sm" className="h-11" onClick={()=>{navigator.clipboard.writeText(shortCode);setCopied(true);setTimeout(()=>setCopied(false),2000);}}>{copied ? <><Check className="size-4 mr-1 text-success"/> Copied</> : <><Copy className="size-4 mr-1"/> Copy code</>}</Button></div><p className="text-[11px] text-muted-foreground">Case-insensitive · Single-use for privacy</p></div>}<div className="flex flex-wrap justify-center gap-3"><Button variant="outline" onClick={download}><Download/> Download QR</Button><Button onClick={share}><Share2/> Share invite</Button></div><Button variant="ghost" asChild className="mt-5"><Link to="/parents">Back to parents</Link></Button></div>}</div></div></ChildShell>;
+  return <ChildShell title="Add a parent" subtitle="A simple way to bring your family together."><div className="max-w-xl"><div className="rounded-2xl border border-card-border bg-card p-6 card-shadow sm:p-8">{!code ? <form onSubmit={generate} className="space-y-6"><div><Label htmlFor="parent-name">Parent name</Label><Input id="parent-name" placeholder="e.g. Meera Tayal" value={name} onChange={e=>setName(e.target.value)} required className="mt-2 h-12"/></div><div><Label htmlFor="relationship">Relationship</Label><Select value={relationship} onValueChange={setRelationship}><SelectTrigger id="relationship" className="mt-2 h-12"><SelectValue/></SelectTrigger><SelectContent>{['Mom','Dad','Grandmother','Grandfather','Other'].map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div><Button type="submit" size="lg" className="h-12 w-full">Generate QR code & Short code</Button></form> : <div className="text-center"><div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-success-soft text-success"><CheckCircle2/></div><h2 className="text-xl font-bold font-display">Invite {name}</h2><p className="mt-2 text-sm text-muted-foreground">Have {name} scan this QR code or enter the short code below in the parent app.</p><div id="invite-qr" className="mx-auto my-7 w-fit rounded-2xl border border-card-border bg-card p-5"><QRCodeSVG value={code} size={200} fgColor="#2563eb" bgColor="#ffffff"/></div>{shortCode && <div className="mx-auto my-6 max-w-sm rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center"><div className="text-xs font-bold uppercase tracking-wider text-primary">Option 2: 6-Character Short Code</div><p className="mt-1 text-xs text-muted-foreground">Your parent can also manually type this code in the parent app instead of scanning:</p><div className="my-3 flex items-center justify-center gap-2"><span className="rounded-xl border bg-card px-4 py-2 font-mono text-2xl font-black tracking-widest text-primary shadow-xs select-all">{shortCode}</span><Button type="button" variant="outline" size="sm" className="h-11 rounded-xl" onClick={()=>{navigator.clipboard.writeText(shortCode);setCopied(true);setTimeout(()=>setCopied(false),2000);}}>{copied ? <><Check className="size-4 mr-1 text-success"/> Copied</> : <><Copy className="size-4 mr-1"/> Copy code</>}</Button></div><p className="text-[11px] text-muted-foreground">Case-insensitive · Single-use for privacy</p></div>}<div className="flex flex-wrap justify-center gap-3"><Button variant="outline" onClick={download}><Download/> Download QR</Button><Button onClick={share}><Share2/> Share invite</Button></div><Button variant="ghost" asChild className="mt-5"><Link to="/parents">Back to parents</Link></Button></div>}</div></div></ChildShell>;
 }
 
 export function ParentDetailsPage() {
@@ -253,35 +265,35 @@ export function ParentDetailsPage() {
       title={parent.name}
       subtitle={`${parent.relationship} · Last active ${parent.lastActivity}`}
       action={
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/parents"><ArrowLeft className="size-4 mr-1"/> Back</Link>
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+          <Button variant="outline" size="sm" asChild className="rounded-xl h-8.5 sm:h-9 shrink-0 text-xs sm:text-sm px-2.5 sm:px-3">
+            <Link to="/parents"><ArrowLeft className="size-3.5 mr-1"/> Back</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setViewInviteParent(parent)}>
+          <Button variant="outline" size="sm" className="rounded-xl h-8.5 sm:h-9 shrink-0 text-xs sm:text-sm px-2.5 sm:px-3" onClick={() => setViewInviteParent(parent)}>
             <QrCode className="size-3.5 mr-1.5"/> Invite code
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setEditingParent(parent)}>
+          <Button variant="outline" size="sm" className="rounded-xl h-8.5 sm:h-9 shrink-0 text-xs sm:text-sm px-2.5 sm:px-3" onClick={() => setEditingParent(parent)}>
             <Pencil className="size-3.5 mr-1.5"/> Edit
           </Button>
-          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeletingParent(parent)}>
+          <Button variant="outline" size="sm" className="rounded-xl h-8.5 sm:h-9 shrink-0 text-xs sm:text-sm px-2.5 sm:px-3 text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeletingParent(parent)}>
             <Trash2 className="size-3.5 mr-1.5"/> Delete
           </Button>
         </div>
       }
     >
-      <div className="mb-6 flex items-center gap-4">
+      <div className="mb-5 sm:mb-6 flex items-center gap-3.5 sm:gap-4 rounded-2xl border border-card-border bg-card p-4 sm:p-5 card-shadow">
         <Avatar parent={parent} size="large"/>
-        <div>
-          <div className="font-bold">{parent.completion}% completion</div>
-          <div className="text-sm text-muted-foreground">You're doing great together</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xl sm:text-2xl font-bold font-display text-foreground">{parent.completion}% completion</div>
+          <div className="text-xs sm:text-sm text-muted-foreground">You're doing great together</div>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <StatCard icon={CheckCircle2} label="Completed" value={parentTasks.filter(t=>t.status==='completed').length} tone="green"/>
         <StatCard icon={Bell} label="Missed" value={parentTasks.filter(t=>t.status==='missed').length} tone="red"/>
         <StatCard icon={CalendarDays} label="Pending" value={parentTasks.filter(t=>t.status==='pending').length}/>
       </div>
-      <div className="mt-9 grid gap-8 lg:grid-cols-2">
+      <div className="mt-8 sm:mt-9 grid gap-6 sm:gap-8 lg:grid-cols-2">
         <section>
           <SectionTitle title="Upcoming tasks"/>
           <div className="space-y-3">
@@ -296,7 +308,7 @@ export function ParentDetailsPage() {
         </section>
         <section>
           <SectionTitle title="Recent activity"/>
-          <div className="rounded-xl border bg-card p-5">
+          <div className="rounded-2xl border border-card-border bg-card p-4 sm:p-5 card-shadow">
             <ActivityTimeline items={parentTasks.filter(t=>t.status!=='pending').map(t=>{
               const compTime = t.status === 'completed'
                 ? (t.completedTime || t.completed_time
@@ -308,18 +320,18 @@ export function ParentDetailsPage() {
           </div>
         </section>
       </div>
-      <section className="mt-9">
+      <section className="mt-8 sm:mt-9">
         <SectionTitle title="Weekly adherence"/>
         {isPending ? (
           <PageSkeleton/>
         ) : (
-          <div className="rounded-xl border bg-card p-6 soft-shadow">
-            <div className="flex h-48 items-end justify-between gap-2 sm:gap-5">
+          <div className="rounded-2xl border border-card-border bg-card p-4 sm:p-6 card-shadow">
+            <div className="flex h-40 sm:h-48 items-end justify-between gap-1.5 sm:gap-5">
               {weekly?.map(item=>(
-                <div key={item.day} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                  <span className="text-xs font-bold text-muted-foreground">{item.rate}%</span>
-                  <div className="w-full max-w-14 rounded-t-lg bg-primary/75" style={{height:`${item.rate}%`}}/>
-                  <span className="text-xs text-muted-foreground">{item.day}</span>
+                <div key={item.day} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5 sm:gap-2">
+                  <span className="text-[10px] sm:text-xs font-bold text-muted-foreground">{item.rate}%</span>
+                  <div className="w-full max-w-9 sm:max-w-14 rounded-t-lg bg-primary/75" style={{height:`${Math.max(item.rate, 4)}%`}}/>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground truncate">{item.day}</span>
                 </div>
               ))}
             </div>
@@ -523,7 +535,7 @@ export function CreateTaskPage() {
 
   return (
     <ChildShell title="Create a task" subtitle="Set up a thoughtful reminder for someone you love.">
-      <form onSubmit={save} className="max-w-2xl space-y-5 rounded-xl border bg-card p-6 soft-shadow sm:p-8">
+      <form onSubmit={save} className="max-w-2xl space-y-5 rounded-2xl border border-card-border bg-card p-6 card-shadow sm:p-8">
         <div>
           <Label htmlFor="task-name">Task name</Label>
           <Input id="task-name" required placeholder="e.g. Take morning medicine" value={name} onChange={e => setName(e.target.value)} className="mt-2 h-12"/>
@@ -647,11 +659,11 @@ export function ProfilePage() {
       <div className="max-w-2xl space-y-8">
         <section>
           <SectionTitle title="Your profile"/>
-          <div className="rounded-xl border bg-card p-5 soft-shadow">
+          <div className="rounded-2xl border border-card-border bg-card p-5 card-shadow">
             <div className="flex items-center gap-4">
-              <div className="grid size-16 place-items-center rounded-full bg-info-soft text-xl font-bold text-primary">{initials}</div>
+              <div className="grid size-16 place-items-center rounded-full bg-blue-50 text-xl font-bold text-primary dark:bg-blue-950/50">{initials}</div>
               <div>
-                <div className="text-lg font-bold">{fullName}</div>
+                <div className="text-lg font-bold font-display">{fullName}</div>
                 <div className="text-sm text-muted-foreground">{email}</div>
               </div>
             </div>
@@ -659,14 +671,14 @@ export function ProfilePage() {
         </section>
         <section>
           <SectionTitle title="Family information"/>
-          <div className="rounded-xl border bg-card px-5 soft-shadow">
+          <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow">
             <SettingsRow icon={Users} title="Your circle" detail={`${parents.length} parents connected`}/>
             <SettingsRow icon={Heart} title="CareCircle family" detail={`${fullName.split(' ')[0]}'s family`}/>
           </div>
         </section>
         <section>
           <SectionTitle title="Settings"/>
-          <div className="rounded-xl border bg-card px-5 soft-shadow">
+          <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow">
             <SettingsRow icon={Settings} title="Dark mode" detail="Use a darker appearance">
               <Switch checked={dark} onCheckedChange={toggle} aria-label="Dark mode"/>
             </SettingsRow>

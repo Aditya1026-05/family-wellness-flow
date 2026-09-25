@@ -1,30 +1,144 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, Heart, ShieldCheck, Smile, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Heart, HeartHandshake, ShieldCheck, Smile, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Brand } from './components';
 import { useCareStore } from './store';
 import { api } from '@/lib/api';
-import familyImage from '@/assets/family-care.jpg';
 
-export function LandingPage(){
-  return <div className="min-h-dvh bg-background"><header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10"><Brand/><span className="hidden text-sm font-medium text-muted-foreground sm:block">Care feels closer here.</span></header><div className="mx-auto max-w-7xl px-4 pb-8 sm:px-8"><div className="relative min-h-[610px] overflow-hidden rounded-2xl bg-muted sm:min-h-[650px]"><img src={familyImage} alt="A daughter and her mother smiling together at home" width={1440} height={1008} className="absolute inset-0 size-full object-cover object-[65%_center]"/><div className="absolute inset-0 bg-gradient-to-r from-foreground/85 via-foreground/55 to-transparent"/><div className="relative flex min-h-[610px] max-w-xl flex-col justify-end px-7 pb-12 text-primary-foreground sm:min-h-[650px] sm:px-14 sm:pb-20"><span className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-primary-foreground/40 px-4 py-2 text-sm font-semibold"><Heart className="size-4"/> Care that connects</span><h1 className="text-5xl font-extrabold leading-tight sm:text-6xl">CareCircle</h1><p className="mt-5 text-xl leading-relaxed sm:text-2xl">Helping families care from anywhere.</p><div className="mt-9 flex flex-col gap-3 sm:flex-row"><Button asChild size="lg" className="h-14 rounded-xl bg-primary-foreground px-7 text-base font-bold text-foreground hover:bg-primary-foreground/90"><Link to="/login">I am a child <ArrowRight/></Link></Button><Button asChild size="lg" variant="outline" className="h-14 rounded-xl border-primary-foreground/70 bg-transparent px-7 text-base font-bold text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"><Link to="/parent/scan">I am a parent <ArrowRight/></Link></Button></div></div></div><div className="grid gap-5 px-3 py-8 sm:grid-cols-3 sm:px-5"><div className="flex items-center gap-3 text-sm font-semibold"><ShieldCheck className="size-5 text-primary"/> Peace of mind, every day</div><div className="flex items-center gap-3 text-sm font-semibold"><Smile className="size-5 text-success"/> Simpler days for parents</div><div className="flex items-center gap-3 text-sm font-semibold"><Sparkles className="size-5 text-warning"/> Closer, wherever you are</div></div></div></div>;
+export function LandingPage() {
+  return (
+    <div className="min-h-[100dvh] overflow-hidden bg-[#f7f9fc] dark:bg-background">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <Brand />
+        <div className="flex items-center gap-3">
+          <Link
+            to="/login"
+            className="hidden rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-muted sm:block"
+          >
+            Sign in
+          </Link>
+          <Button asChild className="rounded-xl px-4 py-2.5 text-sm font-semibold shadow-xs">
+            <Link to="/register">Get started</Link>
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-6 pb-16 pt-8 md:pt-16">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="animate-rise">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-primary dark:bg-blue-950/60 dark:text-blue-300">
+              <HeartHandshake className="size-3.5" /> Care that feels closer
+            </span>
+            <h1 className="mt-6 max-w-2xl font-display text-5xl leading-[1.06] tracking-[-.04em] text-slate-900 dark:text-slate-50 md:text-7xl">
+              A little more <em className="text-primary not-italic">together</em>, every day.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
+              CareCircle makes the everyday care of an aging parent feel clear, shared, and human — for the whole family.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Button asChild size="lg" className="h-13 rounded-xl px-6 text-base font-bold shadow-lg shadow-blue-500/15">
+                <Link to="/register">
+                  Start family circle <ArrowRight className="size-4 ml-1" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="h-13 rounded-xl border-border bg-card px-6 text-base font-semibold text-foreground hover:bg-muted">
+                <Link to="/parent/scan">
+                  <UserRound className="size-4 mr-1 text-primary" /> Parent connection
+                </Link>
+              </Button>
+            </div>
+
+            <div className="mt-12 flex flex-wrap items-center gap-6 border-t border-border/70 pt-8 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-green-600" /> Private & family-first
+              </div>
+              <div className="flex items-center gap-2">
+                <Smile className="size-4 text-primary" /> Gentle for older adults
+              </div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-amber-500" /> Multi-caregiver sync
+              </div>
+            </div>
+          </div>
+
+          <div className="relative animate-rise">
+            <div className="absolute -left-6 -top-6 size-48 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/20" />
+            <div className="relative rounded-[2rem] border border-border bg-card p-6 shadow-2xl shadow-slate-200/60 dark:shadow-none sm:p-8">
+              <div className="flex items-center justify-between border-b border-border/70 pb-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-primary">Live Routine</p>
+                  <h3 className="mt-1 font-display text-2xl text-foreground">Margaret's Day</h3>
+                </div>
+                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                  92% on track
+                </span>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center gap-3.5 rounded-xl border border-border bg-muted/40 p-3.5">
+                  <span className="grid size-8 place-items-center rounded-full bg-green-500 text-white">
+                    <Check className="size-4 stroke-[3]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-muted-foreground line-through">Blood pressure medicine</p>
+                    <p className="text-xs text-muted-foreground">Completed at 8:30 AM</p>
+                  </div>
+                  <span className="text-xs font-bold text-green-600">Done</span>
+                </div>
+
+                <div className="flex items-center gap-3.5 rounded-xl border border-primary/30 bg-primary/5 p-3.5 shadow-xs">
+                  <span className="grid size-8 place-items-center rounded-full bg-primary text-white">
+                    <Clock3 className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground">Hydration & afternoon stretch</p>
+                    <p className="text-xs text-primary font-medium">Scheduled · 2:00 PM</p>
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">Next up</span>
+                </div>
+
+                <div className="flex items-center gap-3.5 rounded-xl border border-border bg-card p-3.5">
+                  <span className="grid size-8 place-items-center rounded-full bg-muted text-muted-foreground">
+                    <Clock3 className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">Evening dinner & check-in</p>
+                    <p className="text-xs text-muted-foreground">Scheduled · 7:30 PM</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Upcoming</span>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-xl bg-blue-50/80 p-4 dark:bg-blue-950/30">
+                <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-1.5">
+                  <Heart className="size-3.5 fill-primary text-primary" />
+                  Shared with Alex (Son) & Dr. Sharma
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
-export function AuthPage({register=false}:{register?:boolean}){
-  const navigate=useNavigate();
-  const [name,setName]=useState('');
-  const [email,setEmail]=useState('');
-  const [password,setPassword]=useState('');
-  const [confirm,setConfirm]=useState('');
-  const [error,setError]=useState('');
-  const [loading,setLoading]=useState(false);
+export function AuthPage({ register = false }: { register?: boolean }) {
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const submit=async(e:React.FormEvent)=>{
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if(register&&password!==confirm){
+    if (register && password !== confirm) {
       setError('Passwords do not match.');
       return;
     }
@@ -43,10 +157,9 @@ export function AuthPage({register=false}:{register?:boolean}){
           password,
         });
       }
-      // Clean slate and re-initialize care store data from backend for this account
       useCareStore.getState().reset();
       await useCareStore.getState().init();
-      navigate({to:'/dashboard'});
+      navigate({ to: '/dashboard' });
     } catch (err: any) {
       setError(err?.message || (register ? 'Could not create account.' : 'Invalid email or password.'));
     } finally {
@@ -54,5 +167,137 @@ export function AuthPage({register=false}:{register?:boolean}){
     }
   };
 
-  return <div className="grid min-h-dvh bg-background lg:grid-cols-2"><div className="flex flex-col px-6 py-7 sm:px-12"><Brand/><div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12"><div className="mb-3 text-sm font-bold text-primary">FOR THE PEOPLE YOU LOVE</div><h1 className="text-3xl font-extrabold sm:text-4xl">{register?'Create your circle':'Welcome back'}</h1><p className="mt-3 text-muted-foreground">{register?'A little more support starts here.':'Your family’s day is ready when you are.'}</p><form onSubmit={submit} className="mt-9 space-y-5">{register&&<div><Label htmlFor="name">Name</Label><Input id="name" required placeholder="Your full name" value={name} onChange={e=>setName(e.target.value)} className="mt-2 h-12"/></div>}<div><Label htmlFor="email">Email</Label><Input id="email" type="email" required placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} className="mt-2 h-12"/></div><div><Label htmlFor="password">Password</Label><Input id="password" type="password" minLength={6} required placeholder="Enter your password" value={password} onChange={e=>setPassword(e.target.value)} className="mt-2 h-12"/></div>{register&&<div><Label htmlFor="confirm">Confirm password</Label><Input id="confirm" type="password" minLength={6} required placeholder="Confirm your password" value={confirm} onChange={e=>setConfirm(e.target.value)} className="mt-2 h-12"/></div>}{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<Button type="submit" size="lg" disabled={loading} className="h-12 w-full rounded-xl">{loading ? 'Please wait...' : (register?'Create account':'Login')} <ArrowRight/></Button></form><p className="mt-7 text-center text-sm text-muted-foreground">{register?'Already have an account?':'New to CareCircle?'} <Link to={register?'/login':'/register'} className="font-bold text-primary">{register?'Login':'Create account'}</Link></p><p className="mt-5 text-center text-xs text-muted-foreground">Aditya demo: aditya@example.com / password123</p></div></div><div className="relative hidden overflow-hidden lg:block"><img src={familyImage} alt="Mother and daughter enjoying time together" width={1440} height={1008} className="absolute inset-0 size-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-foreground/70 to-transparent"/><p className="absolute bottom-14 left-14 max-w-md text-3xl font-bold text-primary-foreground">Because being there can mean so many things.</p></div></div>;
+  return (
+    <div className="min-h-[100dvh] bg-[#f7f9fc] dark:bg-background">
+      <header className="mx-auto max-w-6xl px-6 py-6">
+        <Brand />
+      </header>
+
+      <main className="mx-auto grid max-w-5xl items-center gap-12 px-6 py-8 md:grid-cols-2 md:py-20">
+        <div className="hidden md:block">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-primary dark:bg-blue-950/60 dark:text-blue-300">
+            A kinder way to coordinate
+          </span>
+          <h1 className="mt-5 max-w-md font-display text-4xl lg:text-5xl leading-tight text-foreground">
+            The family routine, in one calm place.
+          </h1>
+          <p className="mt-5 max-w-md leading-7 text-muted-foreground">
+            See what is done, what needs attention, and how to help next — without overwhelming anyone.
+          </p>
+
+          <div className="mt-10 flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              <ShieldCheck className="size-5" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">
+              Private by design. Simple by nature.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-border bg-card p-7 shadow-xl shadow-slate-200/50 dark:shadow-none md:p-9">
+          <Link
+            to="/"
+            className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Back home
+          </Link>
+
+          <h2 className="font-display text-3xl text-foreground">
+            {register ? 'Create your family space' : 'Welcome back'}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {register
+              ? 'You can invite the rest of your circle in a minute.'
+              : 'Your family routine is waiting for you.'}
+          </p>
+
+          <form onSubmit={submit} className="mt-7 space-y-4">
+            {register && (
+              <div>
+                <Label htmlFor="name" className="text-sm font-semibold">Your full name</Label>
+                <Input
+                  id="name"
+                  required
+                  placeholder="e.g. Alex Ellis"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="mt-2 h-12 rounded-xl"
+                />
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="email" className="text-sm font-semibold">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="mt-2 h-12 rounded-xl"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                minLength={6}
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="mt-2 h-12 rounded-xl"
+              />
+            </div>
+
+            {register && (
+              <div>
+                <Label htmlFor="confirm" className="text-sm font-semibold">Confirm password</Label>
+                <Input
+                  id="confirm"
+                  type="password"
+                  minLength={6}
+                  required
+                  placeholder="••••••••"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  className="mt-2 h-12 rounded-xl"
+                />
+              </div>
+            )}
+
+            {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+
+            <Button
+              type="submit"
+              size="lg"
+              disabled={loading}
+              className="mt-3 h-12 w-full rounded-xl text-base font-bold shadow-md shadow-blue-500/10"
+            >
+              {loading ? 'Please wait...' : (register ? 'Create family space' : 'Sign in')}
+              <ArrowRight className="size-4 ml-1" />
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {register ? 'Already have an account? ' : 'New to CareCircle? '}
+            <Link
+              to={register ? '/login' : '/register'}
+              className="font-bold text-primary hover:underline"
+            >
+              {register ? 'Sign in' : 'Create an account'}
+            </Link>
+          </p>
+
+          <p className="mt-5 rounded-xl bg-muted/60 p-3 text-center text-xs text-muted-foreground">
+            Demo account: aditya@example.com / password123
+          </p>
+        </div>
+      </main>
+    </div>
+  );
 }
