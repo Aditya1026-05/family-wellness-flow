@@ -10,7 +10,7 @@ from app.models.parent import ParentProfile
 from app.models.family import Family
 from app.models.escalation import Escalation
 from app.models.notification import Notification
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import utcnow, parse_time_string, ensure_utc
 from services_runtime.config import runtime_config
 from services_runtime.delivery.base import PushPayload
 from services_runtime.delivery.dispatcher import dispatcher
@@ -47,11 +47,22 @@ async def evaluate_and_escalate_overdue_tasks(
         family: Family = parent.family
         threshold_minutes = task.escalation_threshold_minutes or runtime_config.DEFAULT_ESCALATION_THRESHOLD_MINUTES
 
-        # Determine reference deadline
-        deadline = inst.end_time or inst.scheduled_for
-        overdue_threshold = deadline + timedelta(minutes=threshold_minutes)
+        # Determine reference deadline: inst.end_time if set, or parsed scheduled_end_time, else +1 hr
+        sched_for = ensure_utc(inst.scheduled_for)
+        deadline = ensure_utc(inst.end_time)
+        if not deadline and task.scheduled_end_time and sched_for:
+            try:
+                eh, em = parse_time_string(task.scheduled_end_time)
+                dl = sched_for.replace(hour=eh, minute=em, second=0, microsecond=0)
+                if dl < sched_for:
+                    dl += timedelta(days=1)
+                deadline = ensure_utc(dl)
+            except Exception:
+                deadline = None
+        if not deadline and sched_for:
+            deadline = sched_for + timedelta(hours=1)
 
-        is_overdue = force_instance_id is not None or (now >= overdue_threshold)
+        is_overdue = force_instance_id is not None or (deadline and now >= deadline)
 
         if not is_overdue:
             continue

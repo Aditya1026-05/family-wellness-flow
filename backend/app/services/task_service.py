@@ -309,6 +309,8 @@ class TaskService:
                     is_ended = _is_datetime_past(end_dt, now)
                 except Exception:
                     pass
+            elif first_inst and first_inst.scheduled_for:
+                is_ended = _is_datetime_past(first_inst.scheduled_for + timedelta(hours=1), now)
 
             result.append(
                 CareTaskOut(
@@ -388,6 +390,8 @@ class TaskService:
                     is_ended = _is_datetime_past(end_dt, now)
                 except Exception:
                     pass
+            elif inst.scheduled_for:
+                is_ended = _is_datetime_past(inst.scheduled_for + timedelta(hours=1), now)
 
             result.append(
                 TaskInstanceOut(
@@ -519,6 +523,8 @@ class TaskService:
                     is_ended = True
             except Exception:
                 pass
+        elif inst.scheduled_for:
+            is_ended = _is_datetime_past(inst.scheduled_for + timedelta(hours=1), now)
 
         if inst.scheduled_for and is_parent:
             # Allow parent to complete starting 15 minutes before scheduled start
@@ -685,7 +691,19 @@ class TaskService:
         time_display = task.scheduled_time if task else format_time_12h(inst.scheduled_for.hour, inst.scheduled_for.minute)
         end_time_display = task.scheduled_end_time if task else (format_time_12h(inst.end_time.hour, inst.end_time.minute) if inst.end_time else None)
 
-        is_ended = _is_datetime_past(inst.end_time, now) if inst.end_time else False
+        if inst.end_time:
+            is_ended = _is_datetime_past(inst.end_time, now)
+        elif task and task.scheduled_end_time:
+            try:
+                eh, em = parse_time_string(task.scheduled_end_time)
+                end_dt = get_today_datetime(eh, em)
+                is_ended = _is_datetime_past(end_dt, now)
+            except Exception:
+                is_ended = False
+        elif inst.scheduled_for:
+            is_ended = _is_datetime_past(inst.scheduled_for + timedelta(hours=1), now)
+        else:
+            is_ended = False
 
         return TaskInstanceOut(
             id=str(inst.id),

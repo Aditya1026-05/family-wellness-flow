@@ -4,6 +4,14 @@ from typing import Tuple, Optional
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
+def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def get_local_now() -> datetime:
     """Returns current datetime in local timezone."""
     return datetime.now().astimezone()

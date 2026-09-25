@@ -159,12 +159,15 @@ export default function App() {
       // If urgent alarm, trigger the full-screen ringing alarm dialog
       if (isUrgent) {
         setActiveAlarmTask({
-          title: title || 'Urgent Care Task',
-          body: body || 'Please complete this urgent care task now.',
+          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Task'),
+          body: body || (isCallAction ? `${data?.parent_name || 'Parent'} has not completed their task after 45 minutes.` : 'Please complete this urgent care task now.'),
           taskId: data?.task_id || data?.task_instance_id || '1',
           taskTitle: data?.task_title || title || 'Care Task',
           category: data?.category || 'Medicine',
           stage: data?.stage,
+          isCallAction: isCallAction,
+          parentName: data?.parent_name || 'Parent',
+          parentPhone: data?.parent_phone || '',
         });
       }
 
@@ -187,12 +190,15 @@ export default function App() {
 
       if (isUrgent) {
         setActiveAlarmTask({
-          title: title || 'Urgent Care Task',
-          body: body || 'Please complete this task now.',
+          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Task'),
+          body: body || (isCallAction ? `${data?.parent_name || 'Parent'} has not completed their task after 45 minutes.` : 'Please complete this task now.'),
           taskId: data?.task_id || data?.task_instance_id || '1',
           taskTitle: data?.task_title || title,
           category: data?.category || 'Medicine',
           stage: data?.stage,
+          isCallAction: isCallAction,
+          parentName: data?.parent_name || 'Parent',
+          parentPhone: data?.parent_phone || '',
         });
       } else if (isCallAction) {
         setActiveCallEscalation({
@@ -330,19 +336,21 @@ export default function App() {
     }
   }
 
-  // Test 2: 45-Minute Escalation with Call Parent Action
+  // Test 2: 45-Minute Escalation with Call Parent Alarm
   async function handleTestEscalationCallParent() {
     setSendingTest(true);
     try {
       const payload = {
-        title: '⚠️ Call Dad: Breakfast missed!',
-        body: 'Dad has not completed his 8:00 AM Breakfast after 45 minutes. Please call him directly to check in!',
+        title: '🚨 Call Dad Alarm: Breakfast overdue!',
+        body: 'Dad has not completed his 8:00 AM Breakfast after 45 minutes. Ringing alarm to call him directly!',
         sound: 'default',
         badge: 2,
         data: {
           taskId: 'test-breakfast-task',
           task_title: 'Breakfast',
           action: 'call_parent',
+          ring_alarm: true,
+          is_urgent: true,
           parent_name: 'Dad',
           parent_phone: '+15551234567',
           priority: 'High',
@@ -357,6 +365,7 @@ export default function App() {
           body: JSON.stringify({
             to: expoPushToken,
             ...payload,
+            channelId: 'urgent_alarm',
             priority: 'high',
           }),
         });
@@ -373,6 +382,18 @@ export default function App() {
         parentName: 'Dad',
         parentPhone: '+15551234567',
         taskTitle: 'Breakfast',
+      });
+
+      // Trigger call parent alarm ringing dialog
+      setActiveAlarmTask({
+        title: payload.title,
+        body: payload.body,
+        taskId: 'test-breakfast-task',
+        taskTitle: 'Breakfast',
+        isCallAction: true,
+        parentName: 'Dad',
+        parentPhone: '+15551234567',
+        stage: 3,
       });
     } catch (e) {
       Alert.alert('Error', e.message);
@@ -711,26 +732,52 @@ export default function App() {
         <View style={styles.modalOverlay}>
           <View style={styles.alarmModalCard}>
             <View style={styles.alarmIconCircle}>
-              <Text style={styles.alarmEmoji}>⏰</Text>
+              <Text style={styles.alarmEmoji}>{activeAlarmTask?.isCallAction ? '🚨' : '⏰'}</Text>
             </View>
 
-            <Text style={styles.alarmPulsingBadge}>🚨 URGENT CARE ALARM RINGING</Text>
-            <Text style={styles.alarmTaskTitle}>{activeAlarmTask?.taskTitle || activeAlarmTask?.title}</Text>
+            <Text style={styles.alarmPulsingBadge}>
+              {activeAlarmTask?.isCallAction ? '🚨 CALL PARENT ALARM RINGING' : '🚨 URGENT CARE ALARM RINGING'}
+            </Text>
+            <Text style={styles.alarmTaskTitle}>
+              {activeAlarmTask?.isCallAction
+                ? `Call ${activeAlarmTask?.parentName || 'Parent'} Now!`
+                : (activeAlarmTask?.taskTitle || activeAlarmTask?.title)}
+            </Text>
             
             <View style={styles.alarmCategoryBadge}>
-              <Text style={styles.alarmCategoryText}>Category: {activeAlarmTask?.category || 'Medicine'}</Text>
+              <Text style={styles.alarmCategoryText}>
+                {activeAlarmTask?.isCallAction ? 'Care Escalation (45m Overdue)' : `Category: ${activeAlarmTask?.category || 'Medicine'}`}
+              </Text>
             </View>
 
             <Text style={styles.alarmDescription}>
-              {activeAlarmTask?.body || 'Phone is ringing like an alarm until acknowledged. Please complete your care task now!'}
+              {activeAlarmTask?.body || (activeAlarmTask?.isCallAction
+                ? `${activeAlarmTask?.parentName || 'Parent'} has not completed ${activeAlarmTask?.taskTitle || 'care task'} after 45 minutes! Call them directly now.`
+                : 'Phone is ringing like an alarm until acknowledged. Please complete your care task now!')}
             </Text>
 
-            <TouchableOpacity
-              style={styles.alarmCompleteButton}
-              onPress={handleCompleteFromAlarm}
-            >
-              <Text style={styles.alarmCompleteButtonText}>✅ Mark as Completed Now</Text>
-            </TouchableOpacity>
+            {activeAlarmTask?.isCallAction ? (
+              <TouchableOpacity
+                style={[styles.alarmCompleteButton, { backgroundColor: '#10B981' }]}
+                onPress={() => {
+                  Vibration.cancel();
+                  const phone = activeAlarmTask?.parentPhone;
+                  setActiveAlarmTask(null);
+                  handleCallParent(phone);
+                }}
+              >
+                <Text style={styles.alarmCompleteButtonText}>
+                  📞 Call {activeAlarmTask?.parentName || 'Parent'} Directly Now
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.alarmCompleteButton}
+                onPress={handleCompleteFromAlarm}
+              >
+                <Text style={styles.alarmCompleteButtonText}>✅ Mark as Completed Now</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.alarmSnoozeButton}

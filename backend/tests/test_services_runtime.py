@@ -267,12 +267,13 @@ async def test_four_stage_reminder_and_urgent_alarm(db: Session, auth_child):
     db.refresh(inst)
     assert inst.reminder_stage == 3
 
-    # Stage 3 (+45m overdue -> escalate to child to call parent)
+    # Stage 3 (+45m overdue -> alarm parent again and alarm child to call parent)
+    # Task remains pending so parent can still complete it!
     d3 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=3)
     assert inst.id in d3
     db.refresh(inst)
     assert inst.reminder_stage == 4
-    assert inst.status == "missed"
+    assert inst.status == "pending"
 
     # Verify Escalation record created with action_type="call_parent"
     esc = db.scalar(select(Escalation).where(Escalation.task_instance_id == inst.id))
@@ -280,4 +281,77 @@ async def test_four_stage_reminder_and_urgent_alarm(db: Session, auth_child):
     assert "Call" in esc.title
     assert esc.action_type == "call_parent"
     assert esc.priority == "High"
+
+    # Stage 4 / Deadline reached (end time or after 1 hr) -> marked missed
+    d4 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=4)
+    assert inst.id in d4
+    db.refresh(inst)
+    assert inst.reminder_stage == 5
+    assert inst.status == "missed"
+
+    # Verify escalation detail updated to missed task
+    db.refresh(esc)
+    assert esc.escalation_type == "Missed task"
+
+@pytest.mark.asyncio
+async def test_deadline_marking_missed_end_time_and_one_hour(db: Session, auth_child):
+    family = auth_child["family"]
+    parent = auth_child["parent"]
+    now = datetime.now(timezone.utc)
+
+    # Task A: Has explicit end_time 30 mins after start, now is 35 mins after start -> ended
+    task_a = CareTask(
+        family_id=family.id,
+        parent_profile_id=parent.id,
+        title="Morning Walk",
+        category="Exercise",
+        scheduled_time="07:00 AM",
+        scheduled_end_time="07:30 AM",
+    )
+    db.add(task_a)
+    db.flush()
+
+    inst_a = TaskInstance(
+        task_id=task_a.id,
+        parent_profile_id=parent.id,
+        scheduled_for=now - timedelta(minutes=35),
+        end_time=now - timedelta(minutes=5),  # End time 5 mins ago
+        status="pending",
+        reminder_stage=0,
+    )
+    db.add(inst_a)
+
+    # Task B: Has NO end_time, scheduled 65 mins ago -> past 1 hr deadline
+    task_b = CareTask(
+        family_id=family.id,
+        parent_profile_id=parent.id,
+        title="Vitamins",
+        category="Medicine",
+        scheduled_time="08:00 AM",
+    )
+    db.add(task_b)
+    db.flush()
+
+    inst_b = TaskInstance(
+        task_id=task_b.id,
+        parent_profile_id=parent.id,
+        scheduled_for=now - timedelta(minutes=65),
+        status="pending",
+        reminder_stage=0,
+    )
+    db.add(inst_b)
+    db.commit()
+
+    # When poller runs without forcing stage, both should be marked as missed due to deadline expiration
+    d = await poll_and_dispatch_reminders(db)
+    assert inst_a.id in d
+    assert inst_b.id in d
+
+    db.refresh(inst_a)
+    db.refresh(inst_b)
+    assert inst_a.status == "missed"
+    assert inst_a.reminder_stage == 5
+    assert inst_b.status == "missed"
+    assert inst_b.reminder_stage == 5
+
 
