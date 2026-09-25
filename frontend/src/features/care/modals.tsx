@@ -21,7 +21,7 @@ import {
 import { AlertTriangle, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { type CareTask, type Parent, type Category } from './data';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { api } from '@/lib/api';
 
 function formatTimeTo24h(timeStr?: string): string {
@@ -503,10 +503,12 @@ export function ParentInviteModal({
           url: inviteData.qr_value,
         })
         .catch(() => {});
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(`${inviteMessage}\n${inviteData.qr_value}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    } else {
+      const ok = await copyToClipboard(`${inviteMessage}\n${inviteData.qr_value}`);
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     }
   };
 
@@ -553,10 +555,12 @@ export function ParentInviteModal({
                     variant="outline"
                     size="sm"
                     className="h-10"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteData.code);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
+                    onClick={async () => {
+                      const ok = await copyToClipboard(inviteData.code);
+                      if (ok) {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }
                     }}
                   >
                     {copied ? (
