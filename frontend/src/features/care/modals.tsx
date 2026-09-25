@@ -543,7 +543,17 @@ export function ParentInviteModal({
                   6-Character Short Code
                 </div>
                 <div className="my-2.5 flex items-center justify-center gap-2">
-                  <span className="rounded-lg border bg-card px-4 py-1.5 font-mono text-2xl font-black tracking-widest text-primary shadow-xs select-all">
+                  <span
+                    onClick={async () => {
+                      const ok = await copyToClipboard(inviteData.code);
+                      if (ok) {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }
+                    }}
+                    title="Click or tap to copy code"
+                    className="rounded-lg border bg-card px-4 py-1.5 font-mono text-2xl font-black tracking-widest text-primary shadow-xs select-all cursor-pointer hover:border-primary/50 transition-colors"
+                  >
                     {inviteData.code}
                   </span>
                   <Button
