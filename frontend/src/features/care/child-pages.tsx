@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, ArrowLeft, Bell, CalendarDays, Check, CheckCircle2, ClipboardList, Copy, Download, Heart, Pencil, Plus, QrCode, Share2, Trash2, TrendingUp, Users } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -331,9 +331,8 @@ export function AddParentPage() {
   };
 
   const download = async () => {
-    const svg = document.querySelector('#invite-qr svg') as SVGElement | null;
-    if (!svg) return;
-    const ok = await downloadSvgAsPng(svg, `carecircle-${name.toLowerCase().replace(/\s+/g, '-')}-qr`);
+    const canvas = document.querySelector('#invite-qr canvas') as HTMLCanvasElement | null;
+    const ok = await downloadSvgAsPng(canvas || '#invite-qr', `carecircle-${name.toLowerCase().replace(/\s+/g, '-')}-qr`);
     if (ok) {
       setDownloaded(true);
       setTimeout(() => setDownloaded(false), 2000);
@@ -399,8 +398,11 @@ export function AddParentPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 Have {name} scan this QR code or enter the short code below in the parent app.
               </p>
-              <div id="invite-qr" className="mx-auto my-7 w-fit rounded-2xl border border-card-border bg-card p-5">
-                <QRCodeSVG value={code} size={200} fgColor="#2563eb" bgColor="#ffffff" />
+              <div id="invite-qr" className="mx-auto my-7 w-fit rounded-2xl border border-card-border bg-card p-5 flex flex-col items-center">
+                <QRCodeCanvas id="invite-qr-canvas" value={code} size={200} fgColor="#2563eb" bgColor="#ffffff" level="M" includeMargin={true} className="rounded-xl" />
+                <p className="mt-2 text-[10px] text-muted-foreground sm:hidden">
+                  Tip: Tap and hold QR code to save to photos
+                </p>
               </div>
               {shortCode && (
                 <div className="mx-auto my-6 max-w-sm rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center">

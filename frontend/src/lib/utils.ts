@@ -99,146 +99,127 @@ export async function copyToClipboard(text: string): Promise<boolean> {
  * On mobile devices (iOS / Android), uses Web Share File sharing (Save to Photos)
  * or opens the image view so users can long-press to save directly to camera roll.
  */
+/**
+ * Downloads or saves a QR code element (Canvas or SVG) as a crisp PNG image.
+ * Works on Desktop (direct download), Android (direct download), and iOS.
+ */
 export async function downloadSvgAsPng(
-  svgElement: SVGElement,
+  elementOrSelector: HTMLElement | SVGElement | string,
   filename: string = 'carecircle-invite-qr'
 ): Promise<boolean> {
-  if (!svgElement) return false;
+  if (!elementOrSelector) return false;
 
-  try {
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const DOMURL = window.URL || window.webkitURL || window;
-    const url = DOMURL.createObjectURL(svgBlob);
+  const targetEl = typeof elementOrSelector === 'string'
+    ? document.querySelector(elementOrSelector)
+    : elementOrSelector;
 
-    const img = new Image();
+  if (!targetEl) return false;
 
-    const loaded = await new Promise<boolean>((resolve) => {
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
-    });
+  let canvas: HTMLCanvasElement | null = null;
 
-    if (loaded) {
-      const scale = 3; // High-DPI 3x resolution for scanning
-      const width = (svgElement.clientWidth || 200) * scale;
-      const height = (svgElement.clientHeight || 200) * scale;
-      const padding = 24 * scale;
+  // Case 1: Target is already a canvas
+  if (targetEl instanceof HTMLCanvasElement) {
+    canvas = targetEl;
+  } else if (targetEl.querySelector('canvas')) {
+    canvas = targetEl.querySelector('canvas');
+  }
 
-      const canvas = document.createElement('canvas');
-      canvas.width = width + padding * 2;
-      canvas.height = height + padding * 2;
-      const ctx = canvas.getContext('2d');
+  // Case 2: Target is an SVG or contains an SVG
+  if (!canvas) {
+    const svg = (targetEl instanceof SVGElement ? targetEl : targetEl.querySelector('svg')) as SVGElement | null;
+    if (svg) {
+      try {
+        const svgClone = svg.cloneNode(true) as SVGElement;
+        // Fix XML namespace so new Image() parses correctly in browser
+        svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-      if (ctx) {
-        // Draw crisp white card background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, padding, padding, width, height);
+        const svgData = new XMLSerializer().serializeToString(svgClone);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
 
-        DOMURL.revokeObjectURL(url);
-
-        // Convert canvas to Blob
-        const pngBlob = await new Promise<Blob | null>((resolve) => {
-          canvas.toBlob((b) => resolve(b), 'image/png');
+        const img = new Image();
+        const loaded = await new Promise<boolean>((resolve) => {
+          img.onload = () => resolve(true);
+          img.onerror = (e) => {
+            console.warn('SVG img load failed:', e);
+            resolve(false);
+          };
+          img.src = url;
         });
 
-        const pngUrl = canvas.toDataURL('image/png');
-        const isMobile = typeof navigator !== 'undefined' && /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+        if (loaded) {
+          const scale = 3;
+          const width = (svg.clientWidth || 200) * scale;
+          const height = (svg.clientHeight || 200) * scale;
+          const padding = 24 * scale;
 
-        // 1. On Mobile with Web Share Files support (iOS / Android), open native Save to Photos
-        if (pngBlob && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-          try {
-            const file = new File([pngBlob], `${filename}.png`, { type: 'image/png' });
-            if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                title: 'CareCircle Invite QR',
-                files: [file],
-              });
-              return true;
-            }
-          } catch (err: any) {
-            if (err?.name === 'AbortError') return false;
-            console.warn('Native file share failed, trying direct link/view:', err);
+          canvas = document.createElement('canvas');
+          canvas.width = width + padding * 2;
+          canvas.height = height + padding * 2;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, padding, padding, width, height);
           }
         }
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.warn('SVG to canvas conversion failed:', err);
+      }
+    }
+  }
 
-        // 2. On iOS Safari (where <a download> is blocked by WebKit policy):
-        // Open clean popup/tab with the image so the user can tap and hold to Save to Photos
-        const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
-        if (isIOS) {
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.write(`
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Save QR Code</title>
-                  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-                  <style>
-                    body {
-                      margin: 0; padding: 24px;
-                      background: #0f172a; color: #f8fafc;
-                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                      display: flex; flex-direction: column; align-items: center; justify-content: center;
-                      min-height: 85vh; text-align: center;
-                    }
-                    img {
-                      max-width: 280px; width: 100%; height: auto;
-                      border-radius: 20px; box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-                      margin-bottom: 24px;
-                    }
-                    h2 { margin: 0 0 8px 0; font-size: 18px; font-weight: 700; }
-                    p { margin: 0; font-size: 14px; color: #94a3b8; }
-                  </style>
-                </head>
-                <body>
-                  <img src="${pngUrl}" alt="CareCircle QR Code" />
-                  <h2>Tap and hold the QR code</h2>
-                  <p>Select <strong>"Save to Photos"</strong> to keep it on your phone.</p>
-                </body>
-              </html>
-            `);
-            win.document.close();
-            return true;
-          }
+  if (!canvas) {
+    console.error('No canvas or SVG found to download');
+    return false;
+  }
+
+  try {
+    // Convert to PNG Blob
+    const pngBlob = await new Promise<Blob | null>((resolve) => {
+      canvas!.toBlob((b) => resolve(b), 'image/png');
+    });
+
+    if (!pngBlob) return false;
+
+    const isMobile = typeof navigator !== 'undefined' && /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+
+    // 1. Try mobile Web Share Files (iOS "Save Image" to Photos / Android Share)
+    if (isMobile && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        const file = new File([pngBlob], `${filename}.png`, { type: 'image/png' });
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'CareCircle Invite QR',
+            files: [file],
+          });
+          return true;
         }
-
-        // 3. Desktop / Android standard download
-        const downloadLink = document.createElement('a');
-        downloadLink.download = `${filename}.png`;
-        downloadLink.href = pngUrl;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        setTimeout(() => {
-          document.body.removeChild(downloadLink);
-        }, 800);
-        return true;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return false;
       }
     }
 
-    DOMURL.revokeObjectURL(url);
-  } catch (err) {
-    console.warn('Canvas export failed, falling back to direct SVG download:', err);
-  }
-
-  // Fallback to direct SVG file download
-  try {
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
+    // 2. Direct download via Blob ObjectURL (Works on Desktop Chrome, Safari, Firefox, Edge, Android)
+    const blobUrl = URL.createObjectURL(pngBlob);
     const link = document.createElement('a');
     link.href = blobUrl;
-    link.download = `${filename}.svg`;
+    link.download = `${filename}.png`;
+    link.style.position = 'fixed';
+    link.style.left = '-9999px';
     document.body.appendChild(link);
     link.click();
+
     setTimeout(() => {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
-    }, 1000);
+    }, 2000);
+
     return true;
   } catch (err) {
-    console.error('Download QR failed:', err);
+    console.error('Download QR error:', err);
     return false;
   }
 }

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AlertTriangle, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { type CareTask, type Parent, type Category } from './data';
 import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -481,10 +481,9 @@ export function ParentInviteModal({
   };
 
   const downloadQR = async () => {
-    const svg = document.querySelector('#modal-invite-qr svg') as SVGElement | null;
-    if (!svg) return;
+    const canvas = document.querySelector('#modal-invite-qr canvas') as HTMLCanvasElement | null;
     const ok = await downloadSvgAsPng(
-      svg,
+      canvas || '#modal-invite-qr',
       `carecircle-${parent.name.toLowerCase().replace(/\s+/g, '-')}-qr`
     );
     if (ok) {
@@ -528,13 +527,20 @@ export function ParentInviteModal({
           </div>
         ) : (
           <div className="py-2">
-            <div id="modal-invite-qr" className="mx-auto my-3 w-fit rounded-2xl border bg-card p-4 shadow-sm">
-              <QRCodeSVG
+            <div id="modal-invite-qr" className="mx-auto my-3 w-fit rounded-2xl border bg-card p-4 shadow-sm flex flex-col items-center">
+              <QRCodeCanvas
+                id="modal-invite-qr-canvas"
                 value={inviteData?.qr_value || `carecircle://join/${parent.id}`}
                 size={180}
                 fgColor="#2563eb"
                 bgColor="#ffffff"
+                level="M"
+                includeMargin={true}
+                className="rounded-xl shadow-xs"
               />
+              <p className="mt-2 text-[10px] text-muted-foreground sm:hidden">
+                Tip: Tap and hold QR code to save to photos
+              </p>
             </div>
 
             {inviteData?.code && (
