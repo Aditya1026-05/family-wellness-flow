@@ -10,33 +10,245 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ParentHistoryRouteImport } from './routes/parent.history'
+import { Route as ParentHomeRouteImport } from './routes/parent.home'
+import { Route as ParentNotificationsRouteImport } from './routes/parent.notifications'
+import { Route as ParentScanRouteImport } from './routes/parent.scan'
+import { Route as ParentTodayRouteImport } from './routes/parent.today'
+import { Route as ParentWelcomeRouteImport } from './routes/parent.welcome'
+import { Route as ParentsIndexRouteImport } from './routes/parents.index'
+import { Route as ParentsParentIdRouteImport } from './routes/parents.$parentId'
+import { Route as ParentsNewRouteImport } from './routes/parents.new'
+import { Route as TasksIndexRouteImport } from './routes/tasks.index'
+import { Route as TasksNewRouteImport } from './routes/tasks.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentHistoryRoute = ParentHistoryRouteImport.update({
+  id: '/parent/history',
+  path: '/parent/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentHomeRoute = ParentHomeRouteImport.update({
+  id: '/parent/home',
+  path: '/parent/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentNotificationsRoute = ParentNotificationsRouteImport.update({
+  id: '/parent/notifications',
+  path: '/parent/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentScanRoute = ParentScanRouteImport.update({
+  id: '/parent/scan',
+  path: '/parent/scan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentTodayRoute = ParentTodayRouteImport.update({
+  id: '/parent/today',
+  path: '/parent/today',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentWelcomeRoute = ParentWelcomeRouteImport.update({
+  id: '/parent/welcome',
+  path: '/parent/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentsIndexRoute = ParentsIndexRouteImport.update({
+  id: '/parents/',
+  path: '/parents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentsParentIdRoute = ParentsParentIdRouteImport.update({
+  id: '/parents/$parentId',
+  path: '/parents/$parentId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentsNewRoute = ParentsNewRouteImport.update({
+  id: '/parents/new',
+  path: '/parents/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksIndexRoute = TasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksNewRoute = TasksNewRouteImport.update({
+  id: '/tasks/new',
+  path: '/tasks/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
+  '/register': typeof RegisterRoute
+  '/parent/history': typeof ParentHistoryRoute
+  '/parent/home': typeof ParentHomeRoute
+  '/parent/notifications': typeof ParentNotificationsRoute
+  '/parent/scan': typeof ParentScanRoute
+  '/parent/today': typeof ParentTodayRoute
+  '/parent/welcome': typeof ParentWelcomeRoute
+  '/parents/$parentId': typeof ParentsParentIdRoute
+  '/parents/new': typeof ParentsNewRoute
+  '/tasks/new': typeof TasksNewRoute
+  '/parents/': typeof ParentsIndexRoute
+  '/tasks/': typeof TasksIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
+  '/register': typeof RegisterRoute
+  '/parent/history': typeof ParentHistoryRoute
+  '/parent/home': typeof ParentHomeRoute
+  '/parent/notifications': typeof ParentNotificationsRoute
+  '/parent/scan': typeof ParentScanRoute
+  '/parent/today': typeof ParentTodayRoute
+  '/parent/welcome': typeof ParentWelcomeRoute
+  '/parents/$parentId': typeof ParentsParentIdRoute
+  '/parents/new': typeof ParentsNewRoute
+  '/tasks/new': typeof TasksNewRoute
+  '/parents': typeof ParentsIndexRoute
+  '/tasks': typeof TasksIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
+  '/register': typeof RegisterRoute
+  '/parent/history': typeof ParentHistoryRoute
+  '/parent/home': typeof ParentHomeRoute
+  '/parent/notifications': typeof ParentNotificationsRoute
+  '/parent/scan': typeof ParentScanRoute
+  '/parent/today': typeof ParentTodayRoute
+  '/parent/welcome': typeof ParentWelcomeRoute
+  '/parents/$parentId': typeof ParentsParentIdRoute
+  '/parents/new': typeof ParentsNewRoute
+  '/tasks/new': typeof TasksNewRoute
+  '/parents/': typeof ParentsIndexRoute
+  '/tasks/': typeof TasksIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/alerts'
+    | '/dashboard'
+    | '/login'
+    | '/profile'
+    | '/register'
+    | '/parent/history'
+    | '/parent/home'
+    | '/parent/notifications'
+    | '/parent/scan'
+    | '/parent/today'
+    | '/parent/welcome'
+    | '/parents/$parentId'
+    | '/parents/new'
+    | '/tasks/new'
+    | '/parents/'
+    | '/tasks/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/alerts'
+    | '/dashboard'
+    | '/login'
+    | '/profile'
+    | '/register'
+    | '/parent/history'
+    | '/parent/home'
+    | '/parent/notifications'
+    | '/parent/scan'
+    | '/parent/today'
+    | '/parent/welcome'
+    | '/parents/$parentId'
+    | '/parents/new'
+    | '/tasks/new'
+    | '/parents'
+    | '/tasks'
+  id:
+    | '__root__'
+    | '/'
+    | '/alerts'
+    | '/dashboard'
+    | '/login'
+    | '/profile'
+    | '/register'
+    | '/parent/history'
+    | '/parent/home'
+    | '/parent/notifications'
+    | '/parent/scan'
+    | '/parent/today'
+    | '/parent/welcome'
+    | '/parents/$parentId'
+    | '/parents/new'
+    | '/tasks/new'
+    | '/parents/'
+    | '/tasks/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AlertsRoute: typeof AlertsRoute
+  DashboardRoute: typeof DashboardRoute
+  LoginRoute: typeof LoginRoute
+  ProfileRoute: typeof ProfileRoute
+  RegisterRoute: typeof RegisterRoute
+  ParentHistoryRoute: typeof ParentHistoryRoute
+  ParentHomeRoute: typeof ParentHomeRoute
+  ParentNotificationsRoute: typeof ParentNotificationsRoute
+  ParentScanRoute: typeof ParentScanRoute
+  ParentTodayRoute: typeof ParentTodayRoute
+  ParentWelcomeRoute: typeof ParentWelcomeRoute
+  ParentsParentIdRoute: typeof ParentsParentIdRoute
+  ParentsNewRoute: typeof ParentsNewRoute
+  TasksNewRoute: typeof TasksNewRoute
+  ParentsIndexRoute: typeof ParentsIndexRoute
+  TasksIndexRoute: typeof TasksIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +260,139 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/history': {
+      id: '/parent/history'
+      path: '/parent/history'
+      fullPath: '/parent/history'
+      preLoaderRoute: typeof ParentHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/home': {
+      id: '/parent/home'
+      path: '/parent/home'
+      fullPath: '/parent/home'
+      preLoaderRoute: typeof ParentHomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/notifications': {
+      id: '/parent/notifications'
+      path: '/parent/notifications'
+      fullPath: '/parent/notifications'
+      preLoaderRoute: typeof ParentNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/scan': {
+      id: '/parent/scan'
+      path: '/parent/scan'
+      fullPath: '/parent/scan'
+      preLoaderRoute: typeof ParentScanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/today': {
+      id: '/parent/today'
+      path: '/parent/today'
+      fullPath: '/parent/today'
+      preLoaderRoute: typeof ParentTodayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parent/welcome': {
+      id: '/parent/welcome'
+      path: '/parent/welcome'
+      fullPath: '/parent/welcome'
+      preLoaderRoute: typeof ParentWelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parents/': {
+      id: '/parents/'
+      path: '/parents'
+      fullPath: '/parents/'
+      preLoaderRoute: typeof ParentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parents/$parentId': {
+      id: '/parents/$parentId'
+      path: '/parents/$parentId'
+      fullPath: '/parents/$parentId'
+      preLoaderRoute: typeof ParentsParentIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parents/new': {
+      id: '/parents/new'
+      path: '/parents/new'
+      fullPath: '/parents/new'
+      preLoaderRoute: typeof ParentsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/': {
+      id: '/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof TasksIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/new': {
+      id: '/tasks/new'
+      path: '/tasks/new'
+      fullPath: '/tasks/new'
+      preLoaderRoute: typeof TasksNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AlertsRoute: AlertsRoute,
+  DashboardRoute: DashboardRoute,
+  LoginRoute: LoginRoute,
+  ProfileRoute: ProfileRoute,
+  RegisterRoute: RegisterRoute,
+  ParentHistoryRoute: ParentHistoryRoute,
+  ParentHomeRoute: ParentHomeRoute,
+  ParentNotificationsRoute: ParentNotificationsRoute,
+  ParentScanRoute: ParentScanRoute,
+  ParentTodayRoute: ParentTodayRoute,
+  ParentWelcomeRoute: ParentWelcomeRoute,
+  ParentsParentIdRoute: ParentsParentIdRoute,
+  ParentsNewRoute: ParentsNewRoute,
+  TasksNewRoute: TasksNewRoute,
+  ParentsIndexRoute: ParentsIndexRoute,
+  TasksIndexRoute: TasksIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

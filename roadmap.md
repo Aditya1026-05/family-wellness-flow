@@ -1,0 +1,4 @@
+- [ ] Build CareCircle design system and responsive shared UI
+- [ ] Implement child demo flows, pages, task and parent creation
+- [ ] Implement simplified parent onboarding and task flows
+- [ ] Verify desktop/mobile previews and all route metadata
