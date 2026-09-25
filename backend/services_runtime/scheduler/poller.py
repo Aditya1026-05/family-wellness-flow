@@ -95,6 +95,7 @@ async def poll_and_dispatch_reminders(
                 },
                 priority="high",
                 sound="default",
+                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -149,6 +150,7 @@ async def poll_and_dispatch_reminders(
                 },
                 priority="high",
                 sound="default",
+                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -203,6 +205,7 @@ async def poll_and_dispatch_reminders(
                 },
                 priority="high",
                 sound="default",
+                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
