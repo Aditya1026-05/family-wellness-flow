@@ -65,10 +65,12 @@ async def evaluate_and_escalate_overdue_tasks(
 
         # Transition task instance status to missed
         inst.status = "missed"
+        inst.reminder_stage = 4
+        inst.last_reminded_at = now
 
-        priority = "High" if task.category in ("Medicine", "Meal") else "Medium"
-        title = f"{parent.relationship or 'Parent'} missed {task.title}"
-        detail = f"{parent.name} has not confirmed their {task.scheduled_time} {task.title}."
+        priority = "High" if (task.category in ("Medicine", "Meal") or task.ring_alarm) else "Medium"
+        title = f"⚠️ Call {parent.name}: {task.title} missed"
+        detail = f"{parent.name} has not completed {task.title} after 45 minutes (scheduled {task.scheduled_time}). Please call them directly to check in!"
 
         if not existing_esc:
             escalation = Escalation(
@@ -79,6 +81,7 @@ async def evaluate_and_escalate_overdue_tasks(
                 detail=detail,
                 priority=priority,
                 escalation_type="Missed task",
+                action_type="call_parent",
                 status="active",
                 created_at=now,
             )
@@ -91,7 +94,7 @@ async def evaluate_and_escalate_overdue_tasks(
                 family_id=task.family_id,
                 recipient_user_id=family.owner_id,
                 parent_profile_id=parent.id,
-                title=f"Alert: {title}",
+                title=title,
                 message=detail,
                 notification_type="escalation",
                 is_read=False,
@@ -101,12 +104,17 @@ async def evaluate_and_escalate_overdue_tasks(
             db.flush()
 
             push_payload = PushPayload(
-                title=f"Alert: {title}",
-                body=f"Please check in with {parent.name}. {detail}",
+                title=title,
+                body=detail,
                 data={
                     "type": "care_task_escalation",
+                    "action": "call_parent",
                     "task_instance_id": str(inst.id),
                     "parent_id": str(parent.id),
+                    "parent_name": parent.name,
+                    "parent_phone": parent.phone or "",
+                    "task_id": str(task.id),
+                    "task_title": task.title,
                     "priority": priority,
                 },
                 priority="high",
@@ -121,7 +129,7 @@ async def evaluate_and_escalate_overdue_tasks(
             )
 
         escalated_ids.append(inst.id)
-        logger.warning(f"Escalated missed task '{task.title}' for {parent.name} (instance {inst.id})")
+        logger.warning(f"Escalated missed task '{task.title}' for {parent.name} (instance {inst.id}) to call caregiver")
 
     db.commit()
     return escalated_ids

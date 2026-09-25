@@ -36,6 +36,7 @@ class Escalation(Base):
     detail: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[str] = mapped_column(String(50), nullable=False, default="Medium")  # Low, Medium, High, Critical
     escalation_type: Mapped[str] = mapped_column(String(50), nullable=False, default="Missed task")  # Missed task, Escalation, Urgent
+    action_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default="call_parent")  # call_parent, message, check_in
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active", index=True)  # active, acknowledged, resolved, dismissed
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

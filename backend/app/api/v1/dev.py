@@ -23,11 +23,12 @@ class PushDirectTestRequest(BaseModel):
 @router.post("/test-reminder/{task_instance_id}", summary="Force-trigger a reminder dispatch for a specific task instance")
 async def trigger_test_reminder(
     task_instance_id: uuid.UUID,
+    stage: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        dispatched = await poll_and_dispatch_reminders(db, force_instance_id=task_instance_id)
+        dispatched = await poll_and_dispatch_reminders(db, force_instance_id=task_instance_id, force_stage=stage)
         if not dispatched:
             return {
                 "status": "not_dispatched",
@@ -36,7 +37,7 @@ async def trigger_test_reminder(
             }
         return {
             "status": "success",
-            "message": "Reminder notification dispatched and logged to deliveries",
+            "message": f"Stage {stage if stage is not None else 'auto'} reminder notification dispatched and logged to deliveries",
             "dispatched_instances": [str(d) for d in dispatched],
         }
     except Exception as e:

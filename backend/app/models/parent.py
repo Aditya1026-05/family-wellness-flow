@@ -33,6 +33,7 @@ class ParentProfile(Base):
     relationship: Mapped[str] = mapped_column(String(100), nullable=False, default="Parent")
     initials: Mapped[str] = mapped_column(String(10), nullable=False)
     color: Mapped[str] = mapped_column(String(50), nullable=False, default="peach")
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

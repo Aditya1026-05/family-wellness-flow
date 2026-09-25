@@ -22,6 +22,8 @@ class CareTaskCreate(BaseModel):
     repeat: Optional[str] = None
     notes: Optional[str] = None
     detail: Optional[str] = None
+    ring_alarm: Optional[bool] = False
+    ringAlarm: Optional[bool] = False
 
 class CareTaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -40,6 +42,8 @@ class CareTaskUpdate(BaseModel):
     repeat: Optional[str] = None
     notes: Optional[str] = None
     detail: Optional[str] = None
+    ring_alarm: Optional[bool] = None
+    ringAlarm: Optional[bool] = None
     is_active: Optional[bool] = None
 
 class ParentTaskStatus(BaseModel):
@@ -77,6 +81,8 @@ class CareTaskOut(BaseModel):
     repeat_pattern: str = "Daily"
     notes: Optional[str] = None
     detail: Optional[str] = None
+    ring_alarm: bool = False
+    ringAlarm: bool = False
     is_active: bool = True
     is_ended: bool = False
     isEnded: bool = False
@@ -102,6 +108,10 @@ class TaskInstanceOut(BaseModel):
     endTime: Optional[str] = None
     scheduled_end_time: Optional[str] = None
     status: TaskStatusType
+    reminder_stage: int = 0
+    reminderStage: int = 0
+    ring_alarm: bool = False
+    ringAlarm: bool = False
     repeat: str = "Daily"
     repeat_pattern: str = "Daily"
     completed_at: Optional[datetime] = None

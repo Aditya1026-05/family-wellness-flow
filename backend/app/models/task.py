@@ -48,7 +48,8 @@ class CareTask(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reminder_interval_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    escalation_threshold_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    escalation_threshold_minutes: Mapped[int] = mapped_column(Integer, default=45, nullable=False)
+    ring_alarm: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -87,6 +88,8 @@ class TaskInstance(Base):
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     end_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", index=True)  # pending, completed, missed, snoozed
+    reminder_stage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0=due, 1=15m, 2=30m, 3=45m escalated, 4=done
+    last_reminded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     snoozed_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

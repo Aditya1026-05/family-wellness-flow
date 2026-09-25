@@ -148,6 +148,7 @@ class TaskService:
 
         repeat = task_in.repeat_pattern or task_in.repeat or "Daily"
         notes = task_in.notes or task_in.detail
+        ring_alarm = bool(task_in.ring_alarm if task_in.ring_alarm is not None else task_in.ringAlarm)
 
         task = CareTask(
             family_id=family_id,
@@ -159,6 +160,7 @@ class TaskService:
             repeat_pattern=repeat,
             notes=notes,
             detail=notes,
+            ring_alarm=ring_alarm,
             is_active=True,
         )
         db.add(task)
@@ -176,6 +178,7 @@ class TaskService:
                 scheduled_for=scheduled_dt,
                 end_time=end_dt,
                 status="pending",
+                reminder_stage=0,
                 notes=notes,
             )
             db.add(instance)
@@ -209,6 +212,8 @@ class TaskService:
             repeat_pattern=task.repeat_pattern,
             notes=task.notes,
             detail=task.detail,
+            ring_alarm=task.ring_alarm,
+            ringAlarm=task.ring_alarm,
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,
@@ -329,6 +334,8 @@ class TaskService:
                     repeat_pattern=t.repeat_pattern,
                     notes=t.notes,
                     detail=t.detail,
+                    ring_alarm=t.ring_alarm,
+                    ringAlarm=t.ring_alarm,
                     is_active=t.is_active,
                     is_ended=is_ended,
                     isEnded=is_ended,
@@ -399,6 +406,10 @@ class TaskService:
                     scheduled_end_time=end_time_display,
                     scheduled_for=inst.scheduled_for,
                     status=inst.status,  # type: ignore
+                    reminder_stage=inst.reminder_stage,
+                    reminderStage=inst.reminder_stage,
+                    ring_alarm=task.ring_alarm if task else False,
+                    ringAlarm=task.ring_alarm if task else False,
                     repeat=repeat,
                     repeat_pattern=repeat,
                     completed_at=inst.completed_at,
@@ -608,6 +619,10 @@ class TaskService:
             scheduled_end_time=end_time_display,
             scheduled_for=inst.scheduled_for,
             status=inst.status,  # type: ignore
+            reminder_stage=inst.reminder_stage,
+            reminderStage=inst.reminder_stage,
+            ring_alarm=task.ring_alarm if task else False,
+            ringAlarm=task.ring_alarm if task else False,
             repeat=task.repeat_pattern if task else "Daily",
             repeat_pattern=task.repeat_pattern if task else "Daily",
             completed_at=inst.completed_at,
@@ -688,6 +703,10 @@ class TaskService:
             scheduled_end_time=end_time_display,
             scheduled_for=inst.scheduled_for,
             status=inst.status,  # type: ignore
+            reminder_stage=inst.reminder_stage,
+            reminderStage=inst.reminder_stage,
+            ring_alarm=task.ring_alarm if task else False,
+            ringAlarm=task.ring_alarm if task else False,
             repeat=task.repeat_pattern if task else "Daily",
             repeat_pattern=task.repeat_pattern if task else "Daily",
             completed_at=inst.completed_at,
@@ -787,6 +806,8 @@ class TaskService:
             repeat_pattern=task.repeat_pattern,
             notes=task.notes,
             detail=task.detail,
+            ring_alarm=task.ring_alarm,
+            ringAlarm=task.ring_alarm,
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,
@@ -871,6 +892,9 @@ class TaskService:
 
         if task_in.is_active is not None:
             task.is_active = task_in.is_active
+
+        if task_in.ring_alarm is not None or task_in.ringAlarm is not None:
+            task.ring_alarm = bool(task_in.ring_alarm if task_in.ring_alarm is not None else task_in.ringAlarm)
 
         db.commit()
         db.refresh(task)
@@ -959,6 +983,8 @@ class TaskService:
             repeat_pattern=task.repeat_pattern,
             notes=task.notes,
             detail=task.detail,
+            ring_alarm=task.ring_alarm,
+            ringAlarm=task.ring_alarm,
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,

@@ -19,10 +19,16 @@ class AlertOut(BaseModel):
     family_id: str
     task_instance_id: str
     parent_profile_id: str
+    parent_name: Optional[str] = None
+    parentName: Optional[str] = None
+    parent_phone: Optional[str] = None
+    parentPhone: Optional[str] = None
     title: str
     detail: str
     priority: PriorityType
     type: EscalationType
+    action_type: Optional[str] = "call_parent"
+    actionType: Optional[str] = "call_parent"
     status: EscalationStatus
     time: str
     created_at: datetime

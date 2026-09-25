@@ -24,6 +24,7 @@ import {
   Pill,
   Footprints,
   Droplets,
+  Phone,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -388,6 +389,11 @@ export function TaskCard({
                 Ended
               </Badge>
             )}
+            {(task.ring_alarm || task.ringAlarm) && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 px-1.5 py-0.5 text-[10px] font-bold">
+                ⏰ Alarm
+              </span>
+            )}
             {!hasUncompleted && completedTimeStr && (
               <span className="inline-flex items-center gap-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold">
                 <Check className="size-3" /> Completed {completedTimeStr}
@@ -577,47 +583,71 @@ export function ParentCard({
 
 export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: () => void }) {
   const isUrgent = alert.priority === 'High' || alert.priority === 'Critical';
+  const isCallAction = alert.action_type === 'call_parent' || alert.actionType === 'call_parent' || alert.title.toLowerCase().includes('call');
+  const parentPhone = alert.parent_phone || alert.parentPhone;
+
   return (
-    <div className="card-shadow flex gap-4 rounded-2xl border border-card-border bg-card p-5">
-      <div
-        className={cn(
-          'grid size-11 shrink-0 place-items-center rounded-2xl',
-          isUrgent
-            ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300'
-            : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
-        )}
-      >
-        <Bell className="size-5"/>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-foreground">{alert.title}</h3>
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-              isUrgent
-                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-            )}
-          >
-            {alert.priority}
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p>
-        <p className="mt-2 text-xs text-muted-foreground">{alert.time}</p>
-      </div>
-      {onDismiss && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onDismiss}
-          aria-label={`Dismiss ${alert.title}`}
-          title="Dismiss alert"
-          className="self-start rounded-xl text-xs font-semibold"
+    <div className="card-shadow flex flex-col sm:flex-row gap-4 rounded-2xl border border-card-border bg-card p-5">
+      <div className="flex gap-4 min-w-0 flex-1">
+        <div
+          className={cn(
+            'grid size-11 shrink-0 place-items-center rounded-2xl',
+            isUrgent
+              ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300'
+              : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
+          )}
         >
-          <Check className="size-3.5 mr-1"/> Resolve
-        </Button>
-      )}
+          {isCallAction ? <Phone className="size-5 animate-pulse" /> : <Bell className="size-5" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-bold text-foreground">{alert.title}</h3>
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                isUrgent
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              )}
+            >
+              {alert.priority}
+            </span>
+            {isCallAction && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold">
+                ⚠️ 45m Overdue · Call Required
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{alert.time}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 self-end sm:self-start shrink-0">
+        {isCallAction && (
+          <Button
+            asChild
+            size="sm"
+            className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm"
+          >
+            <a href={parentPhone ? `tel:${parentPhone}` : "tel:"}>
+              <Phone className="size-3.5 mr-1" /> Call Parent
+            </a>
+          </Button>
+        )}
+        {onDismiss && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDismiss}
+            aria-label={`Dismiss ${alert.title}`}
+            title="Dismiss alert"
+            className="rounded-xl text-xs font-semibold"
+          >
+            <Check className="size-3.5 mr-1" /> Resolve
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

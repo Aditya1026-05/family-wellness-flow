@@ -107,16 +107,24 @@ class EscalationService:
         results: List[AlertOut] = []
         for e in escalations:
             time_str = format_relative_time(e.created_at)
+            p_name = e.parent_profile.name if e.parent_profile else None
+            p_phone = e.parent_profile.phone if e.parent_profile else None
             results.append(
                 AlertOut(
                     id=str(e.id),
                     family_id=str(e.family_id),
                     task_instance_id=str(e.task_instance_id),
                     parent_profile_id=str(e.parent_profile_id),
+                    parent_name=p_name,
+                    parentName=p_name,
+                    parent_phone=p_phone,
+                    parentPhone=p_phone,
                     title=e.title,
                     detail=e.detail,
                     priority=e.priority,  # type: ignore
                     type=e.escalation_type,  # type: ignore
+                    action_type=e.action_type or "call_parent",
+                    actionType=e.action_type or "call_parent",
                     status=e.status,  # type: ignore
                     time=time_str,
                     created_at=e.created_at,

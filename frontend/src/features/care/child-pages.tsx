@@ -720,6 +720,7 @@ export function CreateTaskPage() {
   const [endTime, setEndTime] = useState('');
   const [repeat, setRepeat] = useState('Daily');
   const [notes, setNotes] = useState('');
+  const [ringAlarm, setRingAlarm] = useState(true);
 
   if (!parents.length) {
     return (
@@ -728,6 +729,13 @@ export function CreateTaskPage() {
       </ChildShell>
     );
   }
+
+  const handleCategoryChange = (val: Category) => {
+    setCategory(val);
+    if (val === 'Medicine' || val === 'Meal') {
+      setRingAlarm(true);
+    }
+  };
 
   const toggleParent = (pId: string) => {
     if (selectedParentIds.includes(pId)) {
@@ -773,6 +781,8 @@ export function CreateTaskPage() {
       repeat,
       notes,
       detail: notes,
+      ring_alarm: ringAlarm,
+      ringAlarm: ringAlarm,
     });
     navigate({ to: '/tasks' });
   };
@@ -824,7 +834,7 @@ export function CreateTaskPage() {
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={v => setCategory(v as Category)}>
+            <Select value={category} onValueChange={v => handleCategoryChange(v as Category)}>
               <SelectTrigger id="category" className="mt-2 h-12"><SelectValue/></SelectTrigger>
               <SelectContent>
                 {['Meal', 'Medicine', 'Exercise', 'Appointment', 'Wellness'].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
@@ -851,6 +861,32 @@ export function CreateTaskPage() {
             <Input id="task-endtime" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="mt-2 h-12" placeholder="Optional end time"/>
           </div>
         </div>
+
+        {/* Urgent Task Alarm Toggle */}
+        <div className="flex items-center justify-between rounded-xl border border-card-border bg-card/80 p-4 transition-colors">
+          <div className="space-y-1 pr-4">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⏰</span>
+              <Label htmlFor="task-ring-alarm" className="font-semibold text-foreground cursor-pointer">
+                Ring phone like an alarm (Urgent task)
+              </Label>
+              {ringAlarm && (
+                <span className="rounded-full bg-red-100 dark:bg-red-950/50 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400">
+                  Alarm ON
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rings loudly with sound and vibration on parent's phone at task time and follow-up intervals until completed.
+            </p>
+          </div>
+          <Switch
+            id="task-ring-alarm"
+            checked={ringAlarm}
+            onCheckedChange={setRingAlarm}
+          />
+        </div>
+
         <div>
           <Label htmlFor="task-notes">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
           <Textarea id="task-notes" rows={4} placeholder="Anything helpful for your parent to know" value={notes} onChange={e => setNotes(e.target.value)} className="mt-2"/>

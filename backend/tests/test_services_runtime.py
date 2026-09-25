@@ -218,3 +218,66 @@ def test_dev_simulation_endpoints(client: TestClient, db: Session, auth_child):
     )
     assert r3.status_code == 200
     assert r3.json()["status"] == "completed"
+
+@pytest.mark.asyncio
+async def test_four_stage_reminder_and_urgent_alarm(db: Session, auth_child):
+    family = auth_child["family"]
+    parent = auth_child["parent"]
+    parent.phone = "+1234567890"
+    db.commit()
+
+    now = datetime.now(timezone.utc)
+    task = CareTask(
+        family_id=family.id,
+        parent_profile_id=parent.id,
+        title="Morning Blood Pressure Medicine",
+        category="Medicine",
+        scheduled_time="08:00 AM",
+        ring_alarm=True,
+        escalation_threshold_minutes=45,
+    )
+    db.add(task)
+    db.flush()
+
+    inst = TaskInstance(
+        task_id=task.id,
+        parent_profile_id=parent.id,
+        scheduled_for=now - timedelta(minutes=50),
+        status="pending",
+        reminder_stage=0,
+    )
+    db.add(inst)
+    db.commit()
+
+    # Stage 0 (0m time reached)
+    d0 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=0)
+    assert inst.id in d0
+    db.refresh(inst)
+    assert inst.reminder_stage == 1
+
+    # Stage 1 (+15m overdue)
+    d1 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=1)
+    assert inst.id in d1
+    db.refresh(inst)
+    assert inst.reminder_stage == 2
+
+    # Stage 2 (+30m overdue)
+    d2 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=2)
+    assert inst.id in d2
+    db.refresh(inst)
+    assert inst.reminder_stage == 3
+
+    # Stage 3 (+45m overdue -> escalate to child to call parent)
+    d3 = await poll_and_dispatch_reminders(db, force_instance_id=inst.id, force_stage=3)
+    assert inst.id in d3
+    db.refresh(inst)
+    assert inst.reminder_stage == 4
+    assert inst.status == "missed"
+
+    # Verify Escalation record created with action_type="call_parent"
+    esc = db.scalar(select(Escalation).where(Escalation.task_instance_id == inst.id))
+    assert esc is not None
+    assert "Call" in esc.title
+    assert esc.action_type == "call_parent"
+    assert esc.priority == "High"
+

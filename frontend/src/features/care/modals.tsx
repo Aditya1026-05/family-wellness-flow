@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -65,6 +66,7 @@ export function EditTaskDialog({
   const [endTime, setEndTime] = useState('');
   const [repeat, setRepeat] = useState('Daily');
   const [notes, setNotes] = useState('');
+  const [ringAlarm, setRingAlarm] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -79,6 +81,7 @@ export function EditTaskDialog({
       setEndTime(formatTimeTo24h(task.endTime || task.end_time));
       setRepeat(task.repeat || 'Daily');
       setNotes(task.notes || task.detail || '');
+      setRingAlarm(Boolean(task.ring_alarm ?? task.ringAlarm));
     }
   }, [task, parents]);
 
@@ -117,6 +120,8 @@ export function EditTaskDialog({
         repeat,
         notes,
         detail: notes,
+        ring_alarm: ringAlarm,
+        ringAlarm: ringAlarm,
       });
       onOpenChange(false);
     } finally {
@@ -247,6 +252,31 @@ export function EditTaskDialog({
                 placeholder="Optional"
               />
             </div>
+          </div>
+
+          {/* Urgent Task Alarm Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-card-border bg-muted/40 p-3.5 transition-colors">
+            <div className="space-y-0.5 pr-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">⏰</span>
+                <Label htmlFor="edit-task-ring-alarm" className="text-xs font-semibold text-foreground cursor-pointer">
+                  Ring phone like an alarm (Urgent task)
+                </Label>
+                {ringAlarm && (
+                  <span className="rounded-full bg-red-100 dark:bg-red-950/50 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
+                    Alarm ON
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Triggers loud alarm tone & vibration on parent's phone when due and during follow-ups (0m, 15m, 30m).
+              </p>
+            </div>
+            <Switch
+              id="edit-task-ring-alarm"
+              checked={ringAlarm}
+              onCheckedChange={setRingAlarm}
+            />
           </div>
 
           <div>

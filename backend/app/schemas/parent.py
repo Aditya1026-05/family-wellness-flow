@@ -7,12 +7,14 @@ class ParentCreate(BaseModel):
     relationship: str = "Mom"
     color: Optional[str] = "peach"
     avatar_url: Optional[str] = None
+    phone: Optional[str] = None
 
 class ParentUpdate(BaseModel):
     name: Optional[str] = None
     relationship: Optional[str] = None
     color: Optional[str] = None
     avatar_url: Optional[str] = None
+    phone: Optional[str] = None
 
 class ParentOut(BaseModel):
     id: str
@@ -23,6 +25,7 @@ class ParentOut(BaseModel):
     initials: str
     color: str = "peach"
     avatar_url: Optional[str] = None
+    phone: Optional[str] = None
     lastActivity: str = "Just linked"
     completion: int = 100
     created_at: datetime

@@ -29,6 +29,10 @@ export type CareTask = {
   repeat: string;
   notes?: string;
   detail?: string;
+  ring_alarm?: boolean;
+  ringAlarm?: boolean;
+  reminder_stage?: number;
+  reminderStage?: number;
   is_ended?: boolean;
   isEnded?: boolean;
   completed_at?: string;
@@ -42,6 +46,7 @@ export type Parent = {
   relationship: string;
   initials: string;
   color: string;
+  phone?: string;
   lastActivity: string;
   completion: number;
   invite_code?: string;
@@ -54,6 +59,13 @@ export type CareAlert = {
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
   time: string;
   type: 'Escalation' | 'Missed task' | 'Urgent';
+  action_type?: string;
+  actionType?: string;
+  parent_name?: string;
+  parentName?: string;
+  parent_phone?: string;
+  parentPhone?: string;
+  task_instance_id?: string;
 };
 export const initialParents: Parent[] = [];
 export const initialTasks: CareTask[] = [];
