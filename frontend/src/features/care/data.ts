@@ -58,8 +58,36 @@ export type CareAlert = {
 export const initialParents: Parent[] = [];
 export const initialTasks: CareTask[] = [];
 export const initialAlerts: CareAlert[] = [];
-export const defaultHistory = [
-  { day: 'Mon', rate: 0 }, { day: 'Tue', rate: 0 }, { day: 'Wed', rate: 0 }, { day: 'Thu', rate: 0 }, { day: 'Fri', rate: 0 }, { day: 'Sat', rate: 0 }, { day: 'Sun', rate: 0 },
+
+export type TaskDayDetail = {
+  task_id: string;
+  instance_id: string;
+  title: string;
+  category?: string;
+  status: TaskStatus;
+  scheduled_time?: string;
+  completed_time?: string;
+};
+
+export type ParentAdherenceDay = {
+  day: string;
+  rate: number;
+  date?: string;
+  day_number?: number;
+  has_tasks?: boolean;
+  total_tasks?: number;
+  completed_tasks?: number;
+  tasks?: TaskDayDetail[];
+};
+
+export const defaultHistory: ParentAdherenceDay[] = [
+  { day: 'Mon', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Tue', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Wed', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Thu', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Fri', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Sat', rate: 0, has_tasks: false, tasks: [] },
+  { day: 'Sun', rate: 0, has_tasks: false, tasks: [] },
 ];
 export const history = defaultHistory;
 

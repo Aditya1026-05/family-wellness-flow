@@ -1,8 +1,30 @@
 from datetime import datetime, timezone, timedelta
-from typing import Tuple
+from typing import Tuple, Optional
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+def get_local_now() -> datetime:
+    """Returns current datetime in local timezone."""
+    return datetime.now().astimezone()
+
+def get_today_range() -> Tuple[datetime, datetime]:
+    """
+    Returns (today_start_utc, today_end_utc) representing the local calendar day (00:00 to 24:00)
+    converted to UTC. This ensures that when midnight strikes locally, tasks roll over immediately.
+    """
+    local_now = datetime.now().astimezone()
+    local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_end = local_start + timedelta(days=1)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+def get_today_datetime(hour: int, minute: int) -> datetime:
+    """
+    Returns a UTC datetime for today at the given (hour, minute) in local calendar day.
+    """
+    local_now = datetime.now().astimezone()
+    local_dt = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return local_dt.astimezone(timezone.utc)
 
 def parse_time_string(time_str: str) -> Tuple[int, int]:
     """
@@ -33,13 +55,38 @@ def format_time_12h(hour: int, minute: int) -> str:
     am_pm = "PM" if hour >= 12 else "AM"
     return f"{h12}:{minute:02d} {am_pm}"
 
+def to_local_datetime(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    local_tz = datetime.now().astimezone().tzinfo
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
+    return dt.astimezone(local_tz)
+
+def format_datetime_time_12h(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    local_dt = to_local_datetime(dt)
+    return format_time_12h(local_dt.hour, local_dt.minute)
+
 def format_relative_time(dt: datetime) -> str:
-    now = utcnow()
-    diff = now - dt
-    if diff.total_seconds() < 60:
+    local_now = datetime.now().astimezone()
+    local_dt = to_local_datetime(dt)
+    if not local_dt:
+        return "Unknown"
+
+    today = local_now.date()
+    event_date = local_dt.date()
+    time_str = format_time_12h(local_dt.hour, local_dt.minute)
+
+    diff_seconds = (local_now - local_dt).total_seconds()
+    if 0 <= diff_seconds < 60 and today == event_date:
         return "Just now"
-    if diff.days == 0:
-        return f"Today at {format_time_12h(dt.hour, dt.minute)}"
-    if diff.days == 1:
-        return f"Yesterday at {format_time_12h(dt.hour, dt.minute)}"
-    return dt.strftime("%b %d at ") + format_time_12h(dt.hour, dt.minute)
+
+    if event_date == today:
+        return f"Today at {time_str}"
+    elif event_date == today - timedelta(days=1):
+        return f"Yesterday at {time_str}"
+    else:
+        return f"{local_dt.strftime('%b %d')} at {time_str}"
+

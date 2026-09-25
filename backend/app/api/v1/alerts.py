@@ -12,10 +12,11 @@ router = APIRouter(prefix="/alerts", tags=["Alerts & Escalations"])
 
 @router.get("", response_model=List[AlertOut])
 def list_alerts(
+    today_only: bool = False,
     family: Family = Depends(get_current_family),
     db: Session = Depends(get_db),
 ):
-    return escalation_service.list_alerts(db, family.id)
+    return escalation_service.list_alerts(db, family.id, today_only=today_only)
 
 @router.post("/{alert_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 def dismiss_alert(

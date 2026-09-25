@@ -9,7 +9,14 @@ from app.models.parent import ParentProfile
 from app.models.family import Family
 from app.models.escalation import Escalation
 from app.schemas.task import CareTaskCreate, CareTaskUpdate, CareTaskOut, TaskInstanceOut, ParentTaskStatus
-from app.utils.datetime_utils import parse_time_string, format_time_12h, utcnow
+from app.utils.datetime_utils import (
+    parse_time_string,
+    format_time_12h,
+    format_datetime_time_12h,
+    utcnow,
+    get_today_range,
+    get_today_datetime,
+)
 from app.services.notification_service import notification_service
 
 def _is_datetime_past(target_dt: Optional[datetime], now: datetime) -> bool:
@@ -24,9 +31,18 @@ def _is_datetime_past(target_dt: Optional[datetime], now: datetime) -> bool:
 class TaskService:
     def _ensure_today_instances(self, db: Session, family_id: uuid.UUID) -> None:
         """Ensure today's task instances exist for all active tasks and assigned parents."""
-        now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        today_start, today_end = get_today_range()
+
+        # Mark any past pending/snoozed task instances from previous days as missed
+        past_pending = db.scalars(
+            select(TaskInstance).join(CareTask).where(
+                CareTask.family_id == family_id,
+                TaskInstance.status.in_(["pending", "snoozed"]),
+                TaskInstance.scheduled_for < today_start,
+            )
+        ).all()
+        for p_inst in past_pending:
+            p_inst.status = "missed"
 
         active_tasks = db.scalars(
             select(CareTask).where(
@@ -48,13 +64,13 @@ class TaskService:
                 hour, minute = parse_time_string(task.scheduled_time)
             except Exception:
                 hour, minute = 9, 0
-            scheduled_dt = today_start.replace(hour=hour, minute=minute)
+            scheduled_dt = get_today_datetime(hour, minute)
 
             end_dt = None
             if task.scheduled_end_time:
                 try:
                     eh, em = parse_time_string(task.scheduled_end_time)
-                    end_dt = today_start.replace(hour=eh, minute=em)
+                    end_dt = get_today_datetime(eh, em)
                 except Exception:
                     pass
 
@@ -150,11 +166,8 @@ class TaskService:
 
         for p in valid_parents:
             db.add(TaskParentAssignment(task_id=task.id, parent_profile_id=p.id))
-
-        now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        scheduled_dt = today_start.replace(hour=h, minute=m)
-        end_dt = today_start.replace(hour=end_h, minute=end_m) if (end_h is not None and end_m is not None) else None
+        scheduled_dt = get_today_datetime(h, m)
+        end_dt = get_today_datetime(end_h, end_m) if (end_h is not None and end_m is not None) else None
 
         for p in valid_parents:
             instance = TaskInstance(
@@ -172,6 +185,7 @@ class TaskService:
 
         parent_ids = [str(p.id) for p in valid_parents]
         parent_names = [p.name for p in valid_parents]
+        now = utcnow()
         is_ended = _is_datetime_past(end_dt, now)
 
         return CareTaskOut(
@@ -226,9 +240,8 @@ class TaskService:
 
         tasks = db.scalars(query.order_by(CareTask.created_at.asc())).all()
 
+        today_start, today_end = get_today_range()
         now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
 
         result: List[CareTaskOut] = []
         for t in tasks:
@@ -249,7 +262,7 @@ class TaskService:
                 p_inst = next((i for i in today_insts if i.parent_profile_id == p.id), None)
                 p_st = p_inst.status if p_inst else "pending"
                 p_comp_at = p_inst.completed_at if p_inst else None
-                p_comp_time = format_time_12h(p_comp_at.hour, p_comp_at.minute) if p_comp_at else None
+                p_comp_time = format_datetime_time_12h(p_comp_at)
                 parent_statuses.append(
                     ParentTaskStatus(
                         parent_id=str(p.id),
@@ -274,7 +287,7 @@ class TaskService:
 
             completed_parents = [ps for ps in parent_statuses if ps.status == "completed" and ps.completed_at]
             comp_at = max((ps.completed_at for ps in completed_parents), default=None) if completed_parents else None
-            comp_time = format_time_12h(comp_at.hour, comp_at.minute) if comp_at else None
+            comp_time = format_datetime_time_12h(comp_at)
 
             p_ids = [str(p.id) for p in assigned_parents]
             p_names = [p.name for p in assigned_parents]
@@ -287,7 +300,7 @@ class TaskService:
             elif t.scheduled_end_time:
                 try:
                     eh, em = parse_time_string(t.scheduled_end_time)
-                    end_dt = today_start.replace(hour=eh, minute=em)
+                    end_dt = get_today_datetime(eh, em)
                     is_ended = _is_datetime_past(end_dt, now)
                 except Exception:
                     pass
@@ -338,9 +351,8 @@ class TaskService:
 
         self._ensure_today_instances(db, parent.family_id)
 
+        today_start, today_end = get_today_range()
         now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
 
         instances = db.scalars(
             select(TaskInstance).where(
@@ -353,8 +365,8 @@ class TaskService:
         result: List[TaskInstanceOut] = []
         for inst in instances:
             task = inst.task
-            time_display = task.scheduled_time if task else format_time_12h(inst.scheduled_for.hour, inst.scheduled_for.minute)
-            end_time_display = task.scheduled_end_time if task else (format_time_12h(inst.end_time.hour, inst.end_time.minute) if inst.end_time else None)
+            time_display = task.scheduled_time if task else format_datetime_time_12h(inst.scheduled_for)
+            end_time_display = task.scheduled_end_time if task else format_datetime_time_12h(inst.end_time)
             title = task.title if task else "Care Task"
             category = task.category if task else "Wellness"
             repeat = task.repeat_pattern if task else "Daily"
@@ -365,7 +377,7 @@ class TaskService:
             elif task and task.scheduled_end_time:
                 try:
                     eh, em = parse_time_string(task.scheduled_end_time)
-                    end_dt = today_start.replace(hour=eh, minute=em)
+                    end_dt = get_today_datetime(eh, em)
                     is_ended = _is_datetime_past(end_dt, now)
                 except Exception:
                     pass
@@ -390,8 +402,8 @@ class TaskService:
                     repeat=repeat,
                     repeat_pattern=repeat,
                     completed_at=inst.completed_at,
-                    completed_time=format_time_12h(inst.completed_at.hour, inst.completed_at.minute) if inst.completed_at else None,
-                    completedTime=format_time_12h(inst.completed_at.hour, inst.completed_at.minute) if inst.completed_at else None,
+                    completed_time=format_datetime_time_12h(inst.completed_at),
+                    completedTime=format_datetime_time_12h(inst.completed_at),
                     snoozed_until=inst.snoozed_until,
                     notes=inst.notes,
                     detail=task.detail if task else None,
@@ -483,23 +495,37 @@ class TaskService:
         if not inst:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task instance not found.")
 
-        # Check task end time restriction: parent cannot complete after task has ended
+        # Check task time slot restriction: parent can only complete during their designated time slot
         is_ended = False
+        is_not_started = False
         if inst.end_time:
             is_ended = _is_datetime_past(inst.end_time, now)
         elif inst.task and inst.task.scheduled_end_time:
             try:
                 eh, em = parse_time_string(inst.task.scheduled_end_time)
-                end_dt = today_start.replace(hour=eh, minute=em)
+                end_dt = get_today_datetime(eh, em)
                 if _is_datetime_past(end_dt, now):
                     is_ended = True
             except Exception:
                 pass
 
+        if inst.scheduled_for and is_parent:
+            # Allow parent to complete starting 15 minutes before scheduled start
+            start_window = inst.scheduled_for - timedelta(minutes=15)
+            if not _is_datetime_past(start_window, now):
+                is_not_started = True
+
         if is_parent and is_ended:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Task scheduled time has ended. Only a family caregiver can mark it completed now.",
+            )
+
+        if is_parent and is_not_started:
+            time_name = inst.task.scheduled_time if inst.task else "its scheduled time"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Task is scheduled for {time_name}. You can only complete tasks during their scheduled time slot.",
             )
 
         # Collect instances to complete: inst + siblings matching target_parent_ids (or all if not specified)
@@ -585,8 +611,8 @@ class TaskService:
             repeat=task.repeat_pattern if task else "Daily",
             repeat_pattern=task.repeat_pattern if task else "Daily",
             completed_at=inst.completed_at,
-            completed_time=format_time_12h(inst.completed_at.hour, inst.completed_at.minute) if inst.completed_at else None,
-            completedTime=format_time_12h(inst.completed_at.hour, inst.completed_at.minute) if inst.completed_at else None,
+            completed_time=format_datetime_time_12h(inst.completed_at),
+            completedTime=format_datetime_time_12h(inst.completed_at),
             snoozed_until=inst.snoozed_until,
             notes=inst.notes,
             detail=task.detail if task else None,
@@ -677,9 +703,8 @@ class TaskService:
         if not task or task.family_id != family_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
 
+        today_start, today_end = get_today_range()
         now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
         today_insts = db.scalars(
             select(TaskInstance).where(
                 TaskInstance.task_id == task.id,
@@ -697,7 +722,7 @@ class TaskService:
             p_inst = next((i for i in today_insts if i.parent_profile_id == p.id), None)
             p_st = p_inst.status if p_inst else "pending"
             p_comp_at = p_inst.completed_at if p_inst else None
-            p_comp_time = format_time_12h(p_comp_at.hour, p_comp_at.minute) if p_comp_at else None
+            p_comp_time = format_datetime_time_12h(p_comp_at)
             parent_statuses.append(
                 ParentTaskStatus(
                     parent_id=str(p.id),
@@ -721,7 +746,7 @@ class TaskService:
 
         completed_parents = [ps for ps in parent_statuses if ps.status == "completed" and ps.completed_at]
         comp_at = max((ps.completed_at for ps in completed_parents), default=None) if completed_parents else None
-        comp_time = format_time_12h(comp_at.hour, comp_at.minute) if comp_at else None
+        comp_time = format_datetime_time_12h(comp_at)
 
         p_ids = [str(p.id) for p in assigned_parents]
         p_names = [p.name for p in assigned_parents]
@@ -734,7 +759,7 @@ class TaskService:
         elif task.scheduled_end_time:
             try:
                 eh, em = parse_time_string(task.scheduled_end_time)
-                end_dt = today_start.replace(hour=eh, minute=em)
+                end_dt = get_today_datetime(eh, em)
                 is_ended = _is_datetime_past(end_dt, now)
             except Exception:
                 pass
@@ -850,9 +875,7 @@ class TaskService:
         db.commit()
         db.refresh(task)
 
-        now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        today_start, today_end = get_today_range()
 
         assigned = list(task.assigned_parents)
         if not assigned and task.parent_profile:
@@ -872,12 +895,12 @@ class TaskService:
                     th, tm = parse_time_string(task.scheduled_time)
                 except Exception:
                     th, tm = 9, 0
-                s_dt = today_start.replace(hour=th, minute=tm)
+                s_dt = get_today_datetime(th, tm)
                 e_dt = None
                 if task.scheduled_end_time:
                     try:
                         eh, em = parse_time_string(task.scheduled_end_time)
-                        e_dt = today_start.replace(hour=eh, minute=em)
+                        e_dt = get_today_datetime(eh, em)
                     except Exception:
                         pass
                 inst = TaskInstance(
@@ -892,9 +915,9 @@ class TaskService:
             elif inst.status == "pending":
                 inst.notes = task.notes
                 if new_h is not None and new_m is not None:
-                    inst.scheduled_for = today_start.replace(hour=new_h, minute=new_m)
+                    inst.scheduled_for = get_today_datetime(new_h, new_m)
                 if new_end_h is not None and new_end_m is not None:
-                    inst.end_time = today_start.replace(hour=new_end_h, minute=new_end_m)
+                    inst.end_time = get_today_datetime(new_end_h, new_end_m)
         db.commit()
 
         p_ids = [str(p.id) for p in task.assigned_parents]
@@ -910,7 +933,7 @@ class TaskService:
         if task.scheduled_end_time:
             try:
                 eh, em = parse_time_string(task.scheduled_end_time)
-                end_dt = today_start.replace(hour=eh, minute=em)
+                end_dt = get_today_datetime(eh, em)
                 is_ended = _is_datetime_past(end_dt, now)
             except Exception:
                 pass

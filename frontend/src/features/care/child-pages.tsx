@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, ArrowLeft, Bell, CalendarDays, Check, CheckCircle2, ClipboardList, Copy, Download, Heart, Pencil, Plus, QrCode, Share2, Trash2, TrendingUp, Users } from 'lucide-react';
@@ -13,6 +13,7 @@ import { ChildShell, StatCard, ParentCard, TaskCard, AlertCard, ActivityTimeline
 import { useCareStore } from './store';
 import { history, mockApi, type Category, type CareTask, type Parent } from './data';
 import { EditTaskDialog, EditParentDialog, ConfirmDeleteDialog, ParentInviteModal, CompleteTaskDialog } from './modals';
+import { AdherenceTracker } from './adherence-view';
 import { api, getCurrentUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,103 @@ export function DashboardPage() {
   const firstName = currentUser?.full_name?.split(' ')[0] || (currentUser?.email ? currentUser.email.split('@')[0] : 'there');
   const completed = tasks.filter(t => t.status === 'completed').length;
   const missed = tasks.filter(t => t.status === 'missed').length;
+
+  const todayAlerts = alerts.filter(a => {
+    if (a.time && (a.time.startsWith('Today') || a.time === 'Just now')) return true;
+    if (a.created_at) {
+      const d = new Date(a.created_at);
+      const now = new Date();
+      return d.toDateString() === now.toDateString();
+    }
+    return false;
+  });
+
+  const recentActivities = useMemo(() => {
+    const items: { title: string; time: string; timestamp: number }[] = [];
+
+    tasks.forEach(t => {
+      const pStatuses = t.parentStatuses || t.parent_statuses || [];
+      if (pStatuses.length > 0) {
+        pStatuses.forEach(ps => {
+          if (ps.status === 'completed' && (ps.completed_at || ps.completed_time || ps.completedTime)) {
+            const p = parents.find(parent => parent.id === ps.parentId || parent.id === ps.parent_id);
+            const label = p ? (p.relationship || p.name) : (ps.relationship || ps.parentName || 'Parent');
+            const dateObj = ps.completed_at ? new Date(ps.completed_at) : null;
+            let timeStr = ps.completedTime || ps.completed_time;
+            if (dateObj) {
+              const now = new Date();
+              const isToday = dateObj.toDateString() === now.toDateString();
+              const yesterday = new Date(now);
+              yesterday.setDate(yesterday.getDate() - 1);
+              const isYesterday = dateObj.toDateString() === yesterday.toDateString();
+              const timePart = dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              if (isToday) {
+                timeStr = `Today at ${timePart}`;
+              } else if (isYesterday) {
+                timeStr = `Yesterday at ${timePart}`;
+              } else {
+                timeStr = `${dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timePart}`;
+              }
+            } else if (timeStr) {
+              timeStr = `Today at ${timeStr}`;
+            } else {
+              timeStr = `Today · ${t.time}`;
+            }
+
+            items.push({
+              title: `${label} completed ${t.name}`,
+              time: timeStr,
+              timestamp: dateObj ? dateObj.getTime() : 0,
+            });
+          }
+        });
+      } else if (t.status === 'completed') {
+        const p = parents.find(parent => parent.id === t.parentId || t.parentIds?.includes(parent.id));
+        const label = p ? (p.relationship || p.name) : 'Parent';
+        const dateObj = t.completed_at ? new Date(t.completed_at) : null;
+        let timeStr = t.completedTime || t.completed_time;
+        if (dateObj) {
+          const now = new Date();
+          const isToday = dateObj.toDateString() === now.toDateString();
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const isYesterday = dateObj.toDateString() === yesterday.toDateString();
+          const timePart = dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          if (isToday) {
+            timeStr = `Today at ${timePart}`;
+          } else if (isYesterday) {
+            timeStr = `Yesterday at ${timePart}`;
+          } else {
+            timeStr = `${dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timePart}`;
+          }
+        } else if (timeStr) {
+          timeStr = `Today at ${timeStr}`;
+        } else {
+          timeStr = `Today · ${t.time}`;
+        }
+
+        items.push({
+          title: `${label} completed ${t.name}`,
+          time: timeStr,
+          timestamp: dateObj ? dateObj.getTime() : 0,
+        });
+      }
+    });
+
+    if (items.length === 0) {
+      parents.forEach(p => {
+        if (p.lastActivity && p.lastActivity !== 'Invite pending' && p.lastActivity !== 'Just linked') {
+          items.push({
+            title: `${p.relationship || p.name} completed dinner`,
+            time: p.lastActivity,
+            timestamp: 0,
+          });
+        }
+      });
+    }
+
+    return items.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+  }, [tasks, parents]);
 
   return (
     <ChildShell title={`Good morning, ${firstName}`} subtitle="Here's how your family is doing today." action={<QuickAdd to="/tasks/new" label="New task"/>}>
@@ -104,21 +202,14 @@ export function DashboardPage() {
           <section>
             <SectionTitle title="Needs your attention" link="All alerts" to="/alerts"/>
             <div className="space-y-3">
-              {alerts.length ? alerts.slice(0,2).map(a => <AlertCard key={a.id} alert={a} onDismiss={() => dismissAlert(a.id)}/>) : <EmptyState icon={Bell} title="No alerts" description="Everything is looking good right now."/>}
+              {todayAlerts.length ? todayAlerts.slice(0, 2).map(a => <AlertCard key={a.id} alert={a} onDismiss={() => dismissAlert(a.id)}/>) : <EmptyState icon={Bell} title="No alerts" description="Everything is looking good right now."/>}
             </div>
           </section>
           <section>
             <SectionTitle title="Recent activity"/>
             <div className="rounded-2xl border border-card-border bg-card p-5 card-shadow">
-              {tasks.filter(t => t.status === 'completed').length ? (
-                <ActivityTimeline items={tasks.filter(t => t.status === 'completed').slice(0,4).map(t => {
-                  const p = parents.find(parent => parent.id === t.parentId || t.parentIds?.includes(parent.id));
-                  const label = p ? (p.relationship || p.name) : 'Parent';
-                  const compTime = t.completedTime || t.completed_time
-                    ? `Today at ${t.completedTime || t.completed_time}`
-                    : (t.completedAt || t.completed_at ? `Today at ${new Date(t.completedAt || t.completed_at!).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : `Today · ${t.time}`);
-                  return { title: `${label} completed ${t.name}`, time: compTime };
-                })}/>
+              {recentActivities.length ? (
+                <ActivityTimeline items={recentActivities}/>
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">No completed activity recorded yet today.</p>
               )}
@@ -236,7 +327,6 @@ export function ParentDetailsPage() {
   const { parents, tasks, updateParent, deleteParent, updateTask, deleteTask, completeTask } = useCareStore();
   const parent = parents.find(p => p.id === parentId);
   const parentTasks = tasks.filter(t => t.parentId === parentId || t.parentIds?.includes(parentId));
-  const { data: weekly, isPending } = useQuery({ queryKey: ['adherence', parentId], queryFn: () => mockApi.getWeeklyAdherence(parentId) });
 
   const [editingParent, setEditingParent] = useState<Parent | null>(null);
   const [deletingParent, setDeletingParent] = useState<Parent | null>(null);
@@ -321,22 +411,7 @@ export function ParentDetailsPage() {
         </section>
       </div>
       <section className="mt-8 sm:mt-9">
-        <SectionTitle title="Weekly adherence"/>
-        {isPending ? (
-          <PageSkeleton/>
-        ) : (
-          <div className="rounded-2xl border border-card-border bg-card p-4 sm:p-6 card-shadow">
-            <div className="flex h-40 sm:h-48 items-end justify-between gap-1.5 sm:gap-5">
-              {weekly?.map(item=>(
-                <div key={item.day} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5 sm:gap-2">
-                  <span className="text-[10px] sm:text-xs font-bold text-muted-foreground">{item.rate}%</span>
-                  <div className="w-full max-w-9 sm:max-w-14 rounded-t-lg bg-primary/75" style={{height:`${Math.max(item.rate, 4)}%`}}/>
-                  <span className="text-[10px] sm:text-xs text-muted-foreground truncate">{item.day}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <AdherenceTracker parentId={parentId} parentName={parent.name} />
       </section>
 
       <EditParentDialog

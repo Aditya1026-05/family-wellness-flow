@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Any
+from typing import List, Any, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -103,6 +103,9 @@ def get_parent_invite(
 @router.get("/{parent_id}/adherence", response_model=List[ParentAdherenceDay])
 def get_parent_adherence(
     parent_id: str,
+    range: str = "week",
+    year: Optional[int] = None,
+    month: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    return parent_service.get_weekly_adherence(db, uuid.UUID(parent_id))
+    return parent_service.get_adherence(db, parent_id, range_type=range, year=year, month=month)

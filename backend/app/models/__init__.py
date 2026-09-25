@@ -6,6 +6,8 @@ from app.models.invite import FamilyInvite
 from app.models.task import CareTask, TaskInstance
 from app.models.escalation import Escalation
 from app.models.notification import Notification
+from app.models.device_token import DeviceToken
+from app.models.notification_delivery import NotificationDelivery
 
 __all__ = [
     "Base",
@@ -18,4 +20,6 @@ __all__ = [
     "TaskInstance",
     "Escalation",
     "Notification",
+    "DeviceToken",
+    "NotificationDelivery",
 ]

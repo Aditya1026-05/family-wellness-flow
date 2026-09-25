@@ -1,6 +1,13 @@
 import { CareTask, Parent, CareAlert } from '@/features/care/data';
 
-const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) || 'http://localhost:8001/api/v1';
+const getDynamicApiBase = () => {
+  if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost') {
+    return `http://${window.location.hostname}:8001/api/v1`;
+  }
+  return 'http://localhost:8001/api/v1';
+};
+
+const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) || getDynamicApiBase();
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -128,8 +135,14 @@ export const api = {
         body: JSON.stringify(data),
       }),
     delete: (id: string) => request<void>(`/parents/${id}`, { method: 'DELETE' }),
-    getInvite: (id: string) => request<{ id: string; token: string; code: string; qr_value: string; expires_at: string; is_used: boolean; parent_profile_id: string; parent_name: string; family_id: string }>(`/parents/${id}/invite`),
-    getWeeklyAdherence: (id: string) => request<{ day: string; rate: number }[]>(`/parents/${id}/adherence`),
+    getWeeklyAdherence: (id: string, range: 'week' | 'month' = 'week') =>
+      request<any[]>(`/parents/${id}/adherence?range=${range}`),
+    getAdherence: (id: string, range: 'week' | 'month' = 'week', year?: number, month?: number) => {
+      const q = new URLSearchParams({ range });
+      if (year) q.append('year', String(year));
+      if (month) q.append('month', String(month));
+      return request<any[]>(`/parents/${id}/adherence?${q.toString()}`);
+    },
   },
 
   invites: {
@@ -215,7 +228,7 @@ export const api = {
   },
 
   alerts: {
-    list: () => request<CareAlert[]>('/alerts'),
+    list: (todayOnly: boolean = false) => request<CareAlert[]>(`/alerts${todayOnly ? '?today_only=true' : ''}`),
     dismiss: (id: string) => request<void>(`/alerts/${id}/dismiss`, { method: 'POST' }),
   },
 

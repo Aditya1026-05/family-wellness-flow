@@ -24,11 +24,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Setup CORS
+# Setup CORS to allow localhost and local network Wi-Fi devices (phones/tablets)
 origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

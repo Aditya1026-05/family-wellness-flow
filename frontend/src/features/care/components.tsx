@@ -264,7 +264,7 @@ export function ChildShell({
       {/* Mobile Navigation Bar */}
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 py-2 backdrop-blur lg:hidden pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/80 bg-card/95 px-1 py-1 backdrop-blur-md lg:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       >
         {navItems.map(item => {
           const isActive = path === item.to || (item.to !== '/dashboard' && path.startsWith(`${item.to}/`));
@@ -273,19 +273,19 @@ export function ChildShell({
               key={item.to}
               to={item.to}
               className={cn(
-                'flex flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-semibold transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                'flex flex-col items-center justify-center gap-0.5 rounded-lg py-1 px-0.5 text-[10px] font-medium transition-colors',
+                isActive ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <div className="relative">
-                <item.icon className="size-5" />
+              <div className="relative flex items-center justify-center">
+                <item.icon className="size-4 shrink-0 stroke-[1.8]" />
                 {item.label === 'Alerts' && alerts.length > 0 && (
-                  <span className="absolute -top-1 -right-2 flex size-3.5 items-center justify-center rounded-full bg-amber-400 text-[8px] font-bold text-slate-900">
+                  <span className="absolute -top-1 -right-2 flex size-3 items-center justify-center rounded-full bg-amber-400 text-[7px] font-bold text-slate-900">
                     {alerts.length}
                   </span>
                 )}
               </div>
-              <span className="truncate">{item.label}</span>
+              <span className="truncate leading-tight text-[10px]">{item.label}</span>
             </Link>
           );
         })}
@@ -515,7 +515,7 @@ export function ParentCard({
       </div>
       {tasks.length > 0 && (
         <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
-          {tasks.slice(0, 2).map(task => (
+          {tasks.map(task => (
             <div key={task.id} className="flex items-center justify-between gap-2 text-xs">
               <span className="truncate text-muted-foreground">{task.name}</span>
               <StatusBadge status={task.status}/>

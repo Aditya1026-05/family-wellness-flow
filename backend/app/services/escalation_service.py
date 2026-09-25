@@ -9,7 +9,7 @@ from app.models.task import TaskInstance, CareTask
 from app.models.parent import ParentProfile
 from app.models.family import Family
 from app.schemas.escalation import AlertOut
-from app.utils.datetime_utils import format_relative_time, utcnow
+from app.utils.datetime_utils import format_relative_time, utcnow, get_today_range
 from app.services.notification_service import notification_service
 
 class EscalationService:
@@ -88,15 +88,20 @@ class EscalationService:
 
         return created_escalations
 
-    def list_alerts(self, db: Session, family_id: uuid.UUID) -> List[AlertOut]:
+    def list_alerts(self, db: Session, family_id: uuid.UUID, today_only: bool = False) -> List[AlertOut]:
         # Run auto-escalation check to ensure fresh state
         self.check_overdue_and_escalate(db, family_id=family_id)
 
+        today_start, today_end = get_today_range()
+        conditions = [
+            Escalation.family_id == family_id,
+            Escalation.status == "active",
+        ]
+        if today_only:
+            conditions.append(Escalation.created_at >= today_start)
+
         escalations = db.scalars(
-            select(Escalation).where(
-                Escalation.family_id == family_id,
-                Escalation.status == "active",
-            ).order_by(Escalation.created_at.desc())
+            select(Escalation).where(*conditions).order_by(Escalation.created_at.desc())
         ).all()
 
         results: List[AlertOut] = []

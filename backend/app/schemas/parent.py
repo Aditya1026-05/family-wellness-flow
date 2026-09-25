@@ -28,6 +28,21 @@ class ParentOut(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class TaskDayDetail(BaseModel):
+    task_id: str
+    instance_id: str
+    title: str
+    category: Optional[str] = "Wellness"
+    status: str
+    scheduled_time: Optional[str] = None
+    completed_time: Optional[str] = None
+
 class ParentAdherenceDay(BaseModel):
     day: str
     rate: int
+    date: Optional[str] = None
+    day_number: Optional[int] = None
+    has_tasks: bool = True
+    total_tasks: int = 0
+    completed_tasks: int = 0
+    tasks: List[TaskDayDetail] = []

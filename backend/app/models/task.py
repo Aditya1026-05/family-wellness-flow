@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, Uuid
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, Uuid, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -47,6 +47,8 @@ class CareTask(Base):
     repeat_pattern: Mapped[str] = mapped_column(String(50), nullable=False, default="Daily")  # Once, Daily, Weekly, Monthly
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reminder_interval_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    escalation_threshold_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

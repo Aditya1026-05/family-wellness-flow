@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause } from 'lucide-react';
+import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Brand, CategoryIcon, EmptyState, StatusBadge } from './components';
@@ -9,6 +9,7 @@ import { useCareStore } from './store';
 import { defaultHistory } from './data';
 import { cn } from '@/lib/utils';
 import { api, getCurrentParentProfile } from '@/lib/api';
+import { AdherenceTracker } from './adherence-view';
 
 export function ParentShell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: s => s.location.pathname });
@@ -41,8 +42,8 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <nav aria-label="Parent navigation" className="fixed inset-x-0 bottom-4 z-30 mx-auto max-w-md px-4">
-        <div className="grid grid-cols-3 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl shadow-slate-300/50 backdrop-blur dark:shadow-black/50">
+      <nav aria-label="Parent navigation" className="fixed inset-x-0 bottom-3 z-30 mx-auto max-w-sm px-4">
+        <div className="grid grid-cols-3 rounded-2xl border border-border/80 bg-card/95 p-1 shadow-lg shadow-slate-300/40 backdrop-blur-md dark:shadow-black/50">
           {links.map(l => {
             const isActive = path === l.to;
             return (
@@ -50,13 +51,13 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
                 key={l.to}
                 to={l.to}
                 className={cn(
-                  'flex flex-col items-center gap-1 rounded-xl py-2.5 text-xs font-semibold transition',
+                  'flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[11px] font-semibold transition',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <l.icon className="size-4.5" />
+                <l.icon className="size-4 shrink-0 stroke-[1.8]" />
                 {l.label}
               </Link>
             );
@@ -196,6 +197,18 @@ export function WelcomePage() {
   );
 }
 
+function parseTimeStringToMinutes(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  const match = timeStr.trim().match(/^(\d+)(?::(\d+))?\s*(AM|PM)?$/i);
+  if (!match) return null;
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+  const period = match[3]?.toUpperCase();
+  if (period === 'PM' && hour < 12) hour += 12;
+  if (period === 'AM' && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
 export function ParentHomePage() {
   const profile = getCurrentParentProfile();
   if (!profile) {
@@ -218,13 +231,53 @@ export function ParentHomePage() {
   const snooze = useCareStore(s => s.snoozeTask);
   const snoozed = useCareStore(s => s.snoozedTaskId);
 
-  const active = tasks.find(t => {
-    const isAssigned = t.parentId === parentId || t.parentIds?.includes(parentId);
-    if (!isAssigned) return false;
-    const pStat = (t.parentStatuses || t.parent_statuses || []).find(s => s.parentId === parentId || s.parent_id === parentId);
-    const status = pStat?.status || t.status;
-    return status === 'pending';
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = currentHour * 60 + now.getMinutes();
+
+  let greeting = `Good morning, ${parentName}`;
+  let GreetingIcon = Sun;
+  if (currentHour < 5 || currentHour >= 21) {
+    greeting = `Rest well, ${parentName}`;
+    GreetingIcon = Moon;
+  } else if (currentHour >= 12 && currentHour < 17) {
+    greeting = `Good afternoon, ${parentName}`;
+    GreetingIcon = Sun;
+  } else if (currentHour >= 17 && currentHour < 21) {
+    greeting = `Good evening, ${parentName}`;
+    GreetingIcon = Coffee;
+  }
+
+  const myTasks = tasks.filter(t => t.parentId === parentId || t.parentIds?.includes(parentId));
+
+  const pendingItems = myTasks
+    .filter(t => {
+      const pStat = (t.parentStatuses || t.parent_statuses || []).find(s => s.parentId === parentId || s.parent_id === parentId);
+      const status = pStat?.status || t.status;
+      return status === 'pending';
+    })
+    .map(t => {
+      const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
+      const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
+      return { task: t, startM, endM };
+    })
+    .sort((a, b) => a.startM - b.startM);
+
+  // 1. Is there a task scheduled for this time slot (from 30 mins before start to 30 mins after end)?
+  const currentSlotItem = pendingItems.find(item => {
+    return currentMinutes >= item.startM - 30 && currentMinutes <= item.endM + 30;
   });
+
+  // 2. Is there an overdue task earlier today that was missed/still pending?
+  const overdueItem = pendingItems.find(item => {
+    return currentMinutes > item.endM + 30;
+  });
+
+  // Pick active task: currently due first, otherwise overdue task
+  const activeItem = currentSlotItem || overdueItem;
+  const active = activeItem?.task;
+  const isOverdue = !!overdueItem && !currentSlotItem;
+  const nextUpcomingItem = !activeItem && pendingItems.length > 0 ? pendingItems[0] : null;
 
   const isEnded = active ? (active.is_ended || active.isEnded) : false;
   const timeLabel = active ? (active.endTime ? `${active.time} – ${active.endTime}` : active.time) : '';
@@ -237,7 +290,7 @@ export function ParentHomePage() {
           {todayLabel}
         </p>
         <p className="mt-2 text-sm font-semibold text-primary">
-          Good morning, {parentName}
+          {greeting}
         </p>
       </div>
 
@@ -248,7 +301,7 @@ export function ParentHomePage() {
           </div>
 
           <p className="mt-8 text-xs font-bold uppercase tracking-[.15em] text-primary">
-            Your next step
+            {isOverdue ? 'Needs attention' : 'Your next step'}
           </p>
           <h1 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl text-foreground leading-tight">
             {active.name}
@@ -300,6 +353,58 @@ export function ParentHomePage() {
             If you need help, your family is just a call away.
           </p>
         </div>
+      ) : nextUpcomingItem ? (
+        <div className="mt-6 rounded-[2rem] border border-border bg-card p-7 text-center shadow-xl shadow-slate-200/40 md:p-10">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-blue-50 text-primary dark:bg-blue-950/40">
+            <GreetingIcon className="size-8" />
+          </div>
+
+          <span className="mt-6 inline-block rounded-full bg-blue-100 px-3.5 py-1 text-xs font-bold text-primary dark:bg-blue-950 dark:text-blue-300">
+            NO TASK IN THIS TIME SLOT
+          </span>
+
+          <h2 className="mt-4 font-display text-2xl sm:text-3xl text-foreground">
+            You're all caught up for now
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            No care actions scheduled right at this hour.
+          </p>
+
+          <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-border bg-muted/30 p-4 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Next Upcoming
+              </span>
+              <span className="text-xs font-semibold text-primary">
+                {nextUpcomingItem.task.time}
+              </span>
+            </div>
+            <p className="mt-1 text-base font-bold text-foreground">
+              {nextUpcomingItem.task.name}
+            </p>
+            {nextUpcomingItem.task.detail && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {nextUpcomingItem.task.detail}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row justify-center max-w-sm mx-auto">
+            <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-xs font-bold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+              <Clock3 className="size-4 shrink-0 text-rose-600" />
+              <span>Available in time slot ({nextUpcomingItem.task.time})</span>
+            </div>
+            <Button
+              asChild
+              size="lg"
+              className="min-h-12 flex-1 rounded-2xl font-bold"
+            >
+              <Link to="/parent/today">
+                Today's list ({pendingItems.length})
+              </Link>
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="mt-6 rounded-[2rem] border border-border bg-card p-10 text-center shadow-xl shadow-slate-200/40">
           <CheckCircle2 className="mx-auto size-16 text-green-600" />
@@ -307,7 +412,7 @@ export function ParentHomePage() {
             You're all set, {parentName}.
           </h2>
           <p className="mt-3 text-muted-foreground">
-            There are no more actions for now. Enjoy your day!
+            All tasks for today are completed! Enjoy your day.
           </p>
         </div>
       )}
@@ -362,29 +467,38 @@ export function ParentTodayPage() {
             ? (pStat?.completedTime || pStat?.completed_time || t.completedTime || t.completed_time)
             : ((pStat?.completedAt || t.completedAt || t.completed_at) ? new Date(pStat?.completedAt || t.completedAt || t.completed_at!).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null);
 
+          const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
+          const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
+          const currentM = new Date().getHours() * 60 + new Date().getMinutes();
+          const isInSlot = currentM >= startM - 30 && currentM <= endM + 30;
+          const isUpcoming = currentM < startM - 30;
+          const isTaskCompleted = parentStatus === 'completed';
+
           return (
             <div key={t.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 card-shadow">
               <span
                 className={cn(
                   'grid size-11 shrink-0 place-items-center rounded-2xl',
-                  parentStatus === 'completed'
+                  isTaskCompleted
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                    : parentStatus === 'missed'
+                    : isEnded || parentStatus === 'missed'
                     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                    : 'bg-blue-100 text-primary dark:bg-blue-950/40'
+                    : isUpcoming
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                 )}
               >
-                {parentStatus === 'completed' ? <Check className="size-5" /> : <Clock3 className="size-5" />}
+                {isTaskCompleted ? <Check className="size-5" /> : <Clock3 className="size-5" />}
               </span>
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className={cn('text-base font-bold', parentStatus === 'completed' && 'line-through text-muted-foreground')}>
+                  <h2 className={cn('text-base font-bold', isTaskCompleted && 'line-through text-muted-foreground')}>
                     {t.name}
                   </h2>
-                  {isEnded && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200">Ended</span>}
+                  {isEnded && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 dark:bg-red-950 dark:text-red-200">Ended</span>}
                 </div>
-                {parentStatus === 'completed' ? (
+                {isTaskCompleted ? (
                   <p className="mt-1 text-xs font-semibold text-green-600 flex items-center gap-1">
                     <Check className="size-3.5 shrink-0" /> Completed {completedTimeStr ? `at ${completedTimeStr}` : 'today'}
                   </p>
@@ -393,7 +507,17 @@ export function ParentTodayPage() {
                 )}
               </div>
 
-              <StatusBadge status={parentStatus} />
+              {isTaskCompleted ? (
+                <StatusBadge status="completed" />
+              ) : isEnded ? (
+                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700 dark:bg-red-950 dark:text-red-300">Ended</span>
+              ) : parentStatus === 'missed' ? (
+                <StatusBadge status="missed" />
+              ) : isUpcoming ? (
+                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">Opens at {t.time}</span>
+              ) : (
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Due now</span>
+              )}
             </div>
           );
         }) : (
@@ -407,11 +531,6 @@ export function ParentTodayPage() {
 export function ParentHistoryPage() {
   const profile = getCurrentParentProfile();
   const parentName = profile?.relationship || profile?.parent_name || 'Your';
-  const { data: weekly } = useQuery({
-    queryKey: ['parent-adherence', profile?.parent_profile_id],
-    queryFn: () => profile?.parent_profile_id ? api.parents.getWeeklyAdherence(profile.parent_profile_id) : Promise.resolve(defaultHistory),
-    enabled: !!profile?.parent_profile_id,
-  });
 
   if (!profile) {
     return (
@@ -426,42 +545,20 @@ export function ParentHistoryPage() {
     );
   }
 
-  const historyData = weekly || defaultHistory;
-  const completedCount = historyData.filter(d => d.rate >= 50).length;
-
   return (
     <ParentShell>
-      <div className="text-center">
+      <div className="text-center mb-6">
         <h1 className="font-display text-3xl sm:text-4xl">{parentName} history</h1>
-        <p className="mt-2 text-sm text-muted-foreground">The last seven days, at a glance.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Track your wellness streak, daily adherence, and completed care routines.
+        </p>
       </div>
 
-      <div className="mt-8 rounded-3xl border border-border bg-card p-7 text-center card-shadow">
-        <p className="text-sm font-semibold text-muted-foreground">Things you completed</p>
-        <p className="mt-3 text-6xl font-bold text-green-600 font-display">{completedCount}</p>
-        <p className="mt-2 text-sm text-muted-foreground">days with active care</p>
-
-        <div className="mt-8 grid grid-cols-7 gap-2">
-          {historyData.map((item, i) => (
-            <div key={item.day}>
-              <div
-                className={cn(
-                  'mx-auto flex h-12 w-8 items-center justify-center rounded-full transition-all',
-                  item.rate >= 90
-                    ? 'bg-green-500 text-white'
-                    : item.rate > 0
-                    ? 'bg-primary text-white'
-                    : 'bg-muted text-muted-foreground'
-                )}
-              >
-                {item.rate >= 90 ? <Check className="size-4" /> : item.rate > 0 ? <Clock3 className="size-3.5" /> : null}
-              </div>
-              <p className="mt-2 text-xs font-semibold text-muted-foreground">{item.day}</p>
-              <p className="mt-1 text-[10px] text-muted-foreground">{item.rate}%</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <AdherenceTracker
+        parentId={profile.parent_profile_id}
+        parentName={parentName}
+        isParentView
+      />
 
       <div className="mt-6 rounded-2xl bg-blue-50 p-5 text-center text-sm leading-6 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100 border border-blue-100 dark:border-blue-900/40">
         Every completed action is a small way of taking care of yourself.

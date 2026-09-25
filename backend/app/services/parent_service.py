@@ -1,15 +1,16 @@
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Tuple
+import calendar
+from datetime import datetime, timezone, timedelta, date
+from typing import List, Optional, Tuple, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_
 from fastapi import HTTPException, status
 from app.models.parent import ParentProfile
 from app.models.invite import FamilyInvite
 from app.models.task import CareTask, TaskInstance
-from app.schemas.parent import ParentCreate, ParentUpdate, ParentOut, ParentAdherenceDay
+from app.schemas.parent import ParentCreate, ParentUpdate, ParentOut, ParentAdherenceDay, TaskDayDetail
 from app.services.invite_service import invite_service
-from app.utils.datetime_utils import format_relative_time
+from app.utils.datetime_utils import format_relative_time, get_today_range, format_datetime_time_12h
 
 class ParentService:
     def create_parent(
@@ -45,8 +46,7 @@ class ParentService:
         return parent, invite
 
     def _compute_parent_stats(self, db: Session, parent: ParentProfile) -> Tuple[int, str]:
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        today_start, today_end = get_today_range()
 
         # Query today's instances
         instances = db.scalars(
@@ -125,37 +125,102 @@ class ParentService:
             created_at=p.created_at,
         )
 
-    def get_weekly_adherence(self, db: Session, parent_id: uuid.UUID) -> List[ParentAdherenceDay]:
-        # Return 7-day adherence: Mon-Sun
-        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        now = datetime.now(timezone.utc)
-        current_weekday = now.weekday()  # Mon is 0
+    def get_adherence(
+        self,
+        db: Session,
+        parent_id: Any,
+        range_type: str = "week",
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+    ) -> List[ParentAdherenceDay]:
+        # Gracefully handle string or invalid UUID
+        valid_parent_id: Optional[uuid.UUID] = None
+        if isinstance(parent_id, uuid.UUID):
+            valid_parent_id = parent_id
+        else:
+            try:
+                valid_parent_id = uuid.UUID(str(parent_id))
+            except (ValueError, TypeError):
+                valid_parent_id = None
 
-        # Query instances for the last 7 days
+        local_now = datetime.now().astimezone()
+        local_today = local_now.date()
+
+        target_dates: List[date] = []
+        if range_type == "month":
+            sel_year = year or local_today.year
+            sel_month = month or local_today.month
+            _, num_days = calendar.monthrange(sel_year, sel_month)
+            for d in range(1, num_days + 1):
+                target_dates.append(date(sel_year, sel_month, d))
+        else:
+            # 7 days ending today
+            for i in range(7):
+                target_dates.append(local_today - timedelta(days=6 - i))
+
         results: List[ParentAdherenceDay] = []
-        for i in range(7):
-            day_offset = (current_weekday - (6 - i)) % 7
-            day_name = days[day_offset]
-
-            day_start = (now - timedelta(days=6 - i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        for target_date in target_dates:
+            day_start = datetime(
+                target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=local_now.tzinfo
+            ).astimezone(timezone.utc)
             day_end = day_start + timedelta(days=1)
 
-            instances = db.scalars(
-                select(TaskInstance).where(
-                    TaskInstance.parent_profile_id == parent_id,
-                    TaskInstance.scheduled_for >= day_start,
-                    TaskInstance.scheduled_for < day_end,
-                )
-            ).all()
-
-            if instances:
-                rate = int(round((sum(1 for x in instances if x.status == "completed") / len(instances)) * 100))
+            if valid_parent_id:
+                instances = db.scalars(
+                    select(TaskInstance).where(
+                        TaskInstance.parent_profile_id == valid_parent_id,
+                        TaskInstance.scheduled_for >= day_start,
+                        TaskInstance.scheduled_for < day_end,
+                    ).order_by(TaskInstance.scheduled_for.asc())
+                ).all()
             else:
-                rate = 0
+                instances = []
 
-            results.append(ParentAdherenceDay(day=day_name, rate=rate))
+            tasks_list: List[TaskDayDetail] = []
+            for inst in instances:
+                t = inst.task
+                title = t.title if t else "Care Task"
+                category = t.category if t else "Wellness"
+                sched_time = t.scheduled_time if t else format_datetime_time_12h(inst.scheduled_for)
+                comp_time = format_datetime_time_12h(inst.completed_at) if inst.completed_at else None
+                tasks_list.append(
+                    TaskDayDetail(
+                        task_id=str(inst.task_id),
+                        instance_id=str(inst.id),
+                        title=title,
+                        category=category,
+                        status=inst.status,
+                        scheduled_time=sched_time,
+                        completed_time=comp_time,
+                    )
+                )
+
+            total_tasks = len(instances)
+            completed_tasks = sum(1 for x in instances if x.status == "completed")
+            rate = int(round((completed_tasks / total_tasks) * 100)) if total_tasks > 0 else 0
+
+            if range_type == "month":
+                day_label = f"{target_date.day} {target_date.strftime('%b')}"
+            else:
+                day_label = target_date.strftime("%a")
+
+            results.append(
+                ParentAdherenceDay(
+                    day=day_label,
+                    rate=rate,
+                    date=target_date.isoformat(),
+                    day_number=target_date.day,
+                    has_tasks=(total_tasks > 0),
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    tasks=tasks_list,
+                )
+            )
 
         return results
+
+    def get_weekly_adherence(self, db: Session, parent_id: uuid.UUID) -> List[ParentAdherenceDay]:
+        return self.get_adherence(db, parent_id, range_type="week")
 
     def update_parent(
         self,
