@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AlertTriangle, Bell, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
+import { AlertTriangle, Bell, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users, Volume2, Vibrate } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { type CareTask, type Parent, type Category } from './data';
 import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/utils';
@@ -67,6 +67,7 @@ export function EditTaskDialog({
   const [repeat, setRepeat] = useState('Daily');
   const [notes, setNotes] = useState('');
   const [ringAlarm, setRingAlarm] = useState(false);
+  const [ringSound, setRingSound] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -82,6 +83,7 @@ export function EditTaskDialog({
       setRepeat(task.repeat || 'Daily');
       setNotes(task.notes || task.detail || '');
       setRingAlarm(Boolean(task.ring_alarm ?? task.ringAlarm));
+      setRingSound(Boolean(task.ring_sound ?? task.ringSound));
     }
   }, [task, parents]);
 
@@ -122,6 +124,8 @@ export function EditTaskDialog({
         detail: notes,
         ring_alarm: ringAlarm,
         ringAlarm: ringAlarm,
+        ring_sound: ringSound,
+        ringSound: ringSound,
       });
       onOpenChange(false);
     } finally {
@@ -254,29 +258,60 @@ export function EditTaskDialog({
             </div>
           </div>
 
-          {/* Urgent Task Alarm Toggle */}
-          <div className="flex items-center justify-between rounded-xl border border-card-border bg-muted/40 p-3.5 transition-colors">
-            <div className="space-y-0.5 pr-3">
-              <div className="flex items-center gap-2">
-                <Bell className="size-3.5 text-primary shrink-0" />
-                <Label htmlFor="edit-task-ring-alarm" className="text-xs font-semibold text-foreground cursor-pointer">
-                  Ring phone like an alarm (Urgent task)
-                </Label>
-                {ringAlarm && (
-                  <span className="rounded-full bg-red-100 dark:bg-red-950/50 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
-                    Alarm ON
-                  </span>
-                )}
+          {/* Separate Alert Delivery Options: Ringtone & Vibrate */}
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Alert Delivery Options</Label>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {/* Ring Phone (Sound) */}
+              <div className="flex items-center justify-between rounded-xl border border-card-border bg-muted/40 p-3 transition-colors">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <Volume2 className="size-3.5 text-primary shrink-0" />
+                    <Label htmlFor="edit-task-ring-sound" className="text-xs font-semibold text-foreground cursor-pointer">
+                      Ring (Sound)
+                    </Label>
+                    {ringSound && (
+                      <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 dark:text-emerald-400">
+                        ON
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Plays phone ringtone.
+                  </p>
+                </div>
+                <Switch
+                  id="edit-task-ring-sound"
+                  checked={ringSound}
+                  onCheckedChange={setRingSound}
+                />
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Triggers loud alarm tone & vibration on parent's phone when due and during follow-ups (0m, 15m, 30m).
-              </p>
+
+              {/* Vibrate / Alarm */}
+              <div className="flex items-center justify-between rounded-xl border border-card-border bg-muted/40 p-3 transition-colors">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <Vibrate className="size-3.5 text-primary shrink-0" />
+                    <Label htmlFor="edit-task-ring-alarm" className="text-xs font-semibold text-foreground cursor-pointer">
+                      Vibrate (Alarm)
+                    </Label>
+                    {ringAlarm && (
+                      <span className="rounded-full bg-rose-100 dark:bg-rose-950/50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700 dark:text-rose-400">
+                        ON
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Vibrates & shows alarm.
+                  </p>
+                </div>
+                <Switch
+                  id="edit-task-ring-alarm"
+                  checked={ringAlarm}
+                  onCheckedChange={setRingAlarm}
+                />
+              </div>
             </div>
-            <Switch
-              id="edit-task-ring-alarm"
-              checked={ringAlarm}
-              onCheckedChange={setRingAlarm}
-            />
           </div>
 
           <div>

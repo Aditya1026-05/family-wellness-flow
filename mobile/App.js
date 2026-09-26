@@ -15,6 +15,8 @@ import {
   TextInput,
   Dimensions,
   ScrollView,
+  Switch,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -39,22 +41,50 @@ Notifications.setNotificationHandler({
   },
 });
 
-// Configure Android Notification Channels for High Importance & Urgent Alarms
-if (Platform.OS === 'android') {
-  Notifications.setNotificationChannelAsync('urgent_alarm', {
-    name: 'Urgent Task Alarms',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 500, 250, 500, 250, 500],
-    lightColor: '#EF4444',
-    sound: 'default',
-    enableVibrate: true,
-  });
-  Notifications.setNotificationChannelAsync('carecircle-reminders', {
-    name: 'Care Reminders',
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
-  });
+// Configure Android Notification Channels with phone's default ringtone and vibration
+async function setupNotificationChannels() {
+  if (Platform.OS === 'android') {
+    const ringtoneChannelConfig = {
+      name: 'Urgent Task Alarms & Ringtone',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 600, 300, 600, 300, 600],
+      lightColor: '#EF4444',
+      sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      bypassDnd: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.RINGTONE, // Plays phone's native default ringtone
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+        flags: {
+          enforceAudibility: true,
+          requestHardwareAudioVideoSynchronization: false,
+        },
+      },
+    };
+
+    // Delete older channel so Android OS purges the cached non-ringtone setting
+    try {
+      await Notifications.deleteNotificationChannelAsync('urgent_alarm');
+    } catch (e) {
+      // Ignored
+    }
+
+    await Notifications.setNotificationChannelAsync('urgent_alarm', ringtoneChannelConfig);
+    await Notifications.setNotificationChannelAsync('urgent_alarm_v2', ringtoneChannelConfig);
+
+    await Notifications.setNotificationChannelAsync('carecircle-reminders', {
+      name: 'Care Reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      enableVibrate: true,
+    });
+  }
 }
+
+// Initialize notification channels on module load
+setupNotificationChannels();
 
 // Current Mac local network IP
 const DEFAULT_HOST = '172.16.36.36';
@@ -63,6 +93,16 @@ export default function App() {
   const [serverHost, setServerHost] = useState(DEFAULT_HOST);
   const [serverPort, setServerPort] = useState('8080');
   const [backendPort, setBackendPort] = useState('8001');
+
+  // App Start Splash and First-Time Onboarding State
+  const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(null);
+
+  // Device & Alert Permissions Toggles
+  const [permNotifications, setPermNotifications] = useState(true);
+  const [permRingtone, setPermRingtone] = useState(true);
+  const [permVibration, setPermVibration] = useState(true);
+  const [permLockscreen, setPermLockscreen] = useState(true);
 
   const [expoPushToken, setExpoPushToken] = useState('');
   const [isRegistered, setIsRegistered] = useState(false);
@@ -81,9 +121,60 @@ export default function App() {
   const webAppUrl = `http://${serverHost}:${serverPort}`;
   const backendUrl = `http://${serverHost}:${backendPort}`;
 
+  // Start Splash timer: display logo & branding for 1.8 seconds at launch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsSplashVisible(false);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Check if first-time permissions onboarding has already been completed
+  useEffect(() => {
+    (async () => {
+      try {
+        const completed = await AsyncStorage.getItem('carecircle_onboarding_completed_v1');
+        setIsOnboardingCompleted(completed === 'true');
+
+        const savedPerms = await AsyncStorage.getItem('carecircle_device_perms');
+        if (savedPerms) {
+          const p = JSON.parse(savedPerms);
+          if (p.notifications !== undefined) setPermNotifications(p.notifications);
+          if (p.ringtone !== undefined) setPermRingtone(p.ringtone);
+          if (p.vibration !== undefined) setPermVibration(p.vibration);
+          if (p.lockscreen !== undefined) setPermLockscreen(p.lockscreen);
+        }
+      } catch (e) {
+        setIsOnboardingCompleted(true);
+      }
+    })();
+  }, []);
+
+  // Save permission toggles to storage
+  async function savePermissionsPreferences(notif, ring, vib, lock) {
+    try {
+      await AsyncStorage.setItem('carecircle_device_perms', JSON.stringify({
+        notifications: notif,
+        ringtone: ring,
+        vibration: vib,
+        lockscreen: lock,
+      }));
+    } catch (e) {
+      console.log('Perms save note:', e.message);
+    }
+  }
+
+  // Complete onboarding on first download
+  async function handleCompleteOnboarding() {
+    await initPermissionsAndToken();
+    await AsyncStorage.setItem('carecircle_onboarding_completed_v1', 'true');
+    await savePermissionsPreferences(permNotifications, permRingtone, permVibration, permLockscreen);
+    setIsOnboardingCompleted(true);
+  }
+
   // Continuous vibration loop while alarm is ringing
   useEffect(() => {
-    if (activeAlarmTask) {
+    if (activeAlarmTask && permVibration) {
       const interval = setInterval(() => {
         Vibration.vibrate([0, 500, 250, 500]);
       }, 1500);
@@ -95,7 +186,7 @@ export default function App() {
     } else {
       Vibration.cancel();
     }
-  }, [activeAlarmTask]);
+  }, [activeAlarmTask, permVibration]);
 
   // Restore persisted linked profile across reloads and app restarts
   useEffect(() => {
@@ -184,6 +275,7 @@ export default function App() {
         finalStatus = status;
       }
       if (finalStatus !== 'granted') return;
+      await setupNotificationChannels();
 
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: '4c7bc70d-ec44-46d3-9f5b-b9f18a223ad0',
@@ -241,6 +333,46 @@ export default function App() {
     }
   }
 
+  // Test Ringtone & Vibration Trigger
+  async function handleTriggerTestAlarm() {
+    try {
+      if (permNotifications) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Test Care Alarm (Ringtone & Vibration)',
+            body: 'This is a test of your device ringtone & vibration settings.',
+            sound: permRingtone ? 'default' : undefined,
+            data: {
+              ring_alarm: permVibration,
+              ring_sound: permRingtone,
+              is_urgent: true,
+            },
+            channelId: 'urgent_alarm_v2',
+          },
+          trigger: null,
+        });
+      }
+      setActiveAlarmTask({
+        title: 'Test Care Alarm',
+        body: 'Testing phone default ringtone and vibration. Tap Dismiss to stop.',
+        taskId: null,
+        taskTitle: 'Medication Alert Test',
+        category: 'Test Alert',
+        isCallAction: false,
+      });
+    } catch (e) {
+      console.log('Test alarm note:', e.message);
+      setActiveAlarmTask({
+        title: 'Test Care Alarm',
+        body: 'Testing alert. Tap Dismiss to stop.',
+        taskId: null,
+        taskTitle: 'Medication Alert Test',
+        category: 'Test Alert',
+        isCallAction: false,
+      });
+    }
+  }
+
   // Bridge: handle messages posted by the web app inside the WebView
   function handleWebViewMessage(event) {
     try {
@@ -266,6 +398,8 @@ export default function App() {
         }
       } else if (data.type === 'CALL_PARENT') {
         handleCallParent(data.phone, data.parent_name);
+      } else if (data.type === 'TEST_ALARM') {
+        handleTriggerTestAlarm();
       }
     } catch (err) {
       // Ignored if non-json
@@ -377,6 +511,147 @@ export default function App() {
     true;
   `;
 
+  // 1. App Start Page with App Logo
+  if (isSplashVisible) {
+    return (
+      <SafeAreaView style={styles.splashContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
+        <View style={styles.splashContent}>
+          <View style={styles.splashLogoWrapper}>
+            <Image
+              source={require('./assets/icon.png')}
+              style={styles.splashLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.splashTitle}>CareCircle</Text>
+          <Text style={styles.splashSubtitle}>Connecting Generations With Care</Text>
+          <View style={styles.splashLoadingRow}>
+            <ActivityIndicator size="small" color="#93C5FD" />
+            <Text style={styles.splashLoadingText}>Initializing Secure Circle...</Text>
+          </View>
+        </View>
+        <Text style={styles.splashFooter}>v1.0.0 • Family Care Network</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // 2. First-Time Download Permissions Setup Onboarding Screen
+  if (isOnboardingCompleted === false) {
+    return (
+      <SafeAreaView style={styles.onboardingSafeArea}>
+        <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
+        <ScrollView contentContainerStyle={styles.onboardingScroll}>
+          <View style={styles.onboardingHeader}>
+            <Image
+              source={require('./assets/icon.png')}
+              style={styles.onboardingLogo}
+              resizeMode="contain"
+            />
+            <View style={styles.onboardingTag}>
+              <Text style={styles.onboardingTagText}>Initial Setup</Text>
+            </View>
+            <Text style={styles.onboardingTitle}>Enable Device Permissions</Text>
+            <Text style={styles.onboardingDesc}>
+              CareCircle requires permissions to ensure medications, hydration, and safety tasks are acknowledged reliably by family members.
+            </Text>
+          </View>
+
+          <View style={styles.permsCard}>
+            {/* Push Notifications Toggle */}
+            <View style={styles.permRow}>
+              <View style={styles.permInfo}>
+                <Text style={styles.permLabel}>Push Notifications</Text>
+                <Text style={styles.permSub}>Receive alerts when tasks become due or need family attention.</Text>
+              </View>
+              <Switch
+                value={permNotifications}
+                onValueChange={(val) => {
+                  setPermNotifications(val);
+                  savePermissionsPreferences(val, permRingtone, permVibration, permLockscreen);
+                }}
+                trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.permDivider} />
+
+            {/* Native Phone Ringtone Alert */}
+            <View style={styles.permRow}>
+              <View style={styles.permInfo}>
+                <Text style={styles.permLabel}>Phone Ringtone Alert</Text>
+                <Text style={styles.permSub}>Ring your phone using native default ringtone for critical tasks.</Text>
+              </View>
+              <Switch
+                value={permRingtone}
+                onValueChange={(val) => {
+                  setPermRingtone(val);
+                  savePermissionsPreferences(permNotifications, val, permVibration, permLockscreen);
+                }}
+                trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.permDivider} />
+
+            {/* Continuous Vibration */}
+            <View style={styles.permRow}>
+              <View style={styles.permInfo}>
+                <Text style={styles.permLabel}>Continuous Vibration</Text>
+                <Text style={styles.permSub}>Vibrate phone continuously during high-priority care alarms.</Text>
+              </View>
+              <Switch
+                value={permVibration}
+                onValueChange={(val) => {
+                  setPermVibration(val);
+                  savePermissionsPreferences(permNotifications, permRingtone, val, permLockscreen);
+                }}
+                trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.permDivider} />
+
+            {/* Lockscreen Priority */}
+            <View style={styles.permRow}>
+              <View style={styles.permInfo}>
+                <Text style={styles.permLabel}>Lockscreen & Priority Alerts</Text>
+                <Text style={styles.permSub}>Display urgent alarms directly over lockscreen without delay.</Text>
+              </View>
+              <Switch
+                value={permLockscreen}
+                onValueChange={(val) => {
+                  setPermLockscreen(val);
+                  savePermissionsPreferences(permNotifications, permRingtone, permVibration, val);
+                }}
+                trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.onboardingTestBtn}
+            onPress={handleTriggerTestAlarm}
+          >
+            <Text style={styles.onboardingTestBtnText}>Test Ringtone & Vibration</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.onboardingPrimaryBtn}
+            onPress={handleCompleteOnboarding}
+          >
+            <Text style={styles.onboardingPrimaryBtnText}>Allow Permissions & Get Started</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // 3. Main Application Flow
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
@@ -555,7 +830,7 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Server IP Settings Modal */}
+      {/* Settings & Permissions Modal */}
       <Modal
         visible={showConfigModal}
         animationType="fade"
@@ -563,48 +838,139 @@ export default function App() {
         onRequestClose={() => setShowConfigModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.configModalCard}>
-            <Text style={styles.configModalTitle}>Server Connection</Text>
-            <Text style={styles.configModalSub}>
-              Enter your Mac's Wi-Fi IP address so your phone loads the live platform and receives real alarms.
-            </Text>
+          <View style={[styles.configModalCard, { maxHeight: '90%' }]}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.configModalTitle}>Settings & Permissions</Text>
+              <TouchableOpacity onPress={() => setShowConfigModal(false)}>
+                <Text style={styles.closeBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.inputLabel}>Mac Wi-Fi IP Address:</Text>
-            <TextInput
-              style={styles.textInput}
-              value={customHostInput}
-              onChangeText={setCustomHostInput}
-              placeholder="e.g. 172.16.36.36"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Alert & Device Permissions Section */}
+              <Text style={styles.settingsSectionHeader}>ALERT & DEVICE PERMISSIONS</Text>
+              <View style={styles.permsCardInline}>
+                <View style={styles.permRow}>
+                  <View style={styles.permInfo}>
+                    <Text style={styles.permLabel}>Push Notifications</Text>
+                    <Text style={styles.permSub}>Receive task alerts and circle updates.</Text>
+                  </View>
+                  <Switch
+                    value={permNotifications}
+                    onValueChange={(val) => {
+                      setPermNotifications(val);
+                      savePermissionsPreferences(val, permRingtone, permVibration, permLockscreen);
+                    }}
+                    trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
 
-            <View style={styles.configButtonRow}>
+                <View style={styles.permDivider} />
+
+                <View style={styles.permRow}>
+                  <View style={styles.permInfo}>
+                    <Text style={styles.permLabel}>Phone Ringtone Alert</Text>
+                    <Text style={styles.permSub}>Ring phone using default native ringtone.</Text>
+                  </View>
+                  <Switch
+                    value={permRingtone}
+                    onValueChange={(val) => {
+                      setPermRingtone(val);
+                      savePermissionsPreferences(permNotifications, val, permVibration, permLockscreen);
+                    }}
+                    trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.permDivider} />
+
+                <View style={styles.permRow}>
+                  <View style={styles.permInfo}>
+                    <Text style={styles.permLabel}>Continuous Vibration</Text>
+                    <Text style={styles.permSub}>Vibrate phone during urgent alarms.</Text>
+                  </View>
+                  <Switch
+                    value={permVibration}
+                    onValueChange={(val) => {
+                      setPermVibration(val);
+                      savePermissionsPreferences(permNotifications, permRingtone, val, permLockscreen);
+                    }}
+                    trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.permDivider} />
+
+                <View style={styles.permRow}>
+                  <View style={styles.permInfo}>
+                    <Text style={styles.permLabel}>Lockscreen Priority</Text>
+                    <Text style={styles.permSub}>Urgent alerts bypass quiet hours & lockscreen.</Text>
+                  </View>
+                  <Switch
+                    value={permLockscreen}
+                    onValueChange={(val) => {
+                      setPermLockscreen(val);
+                      savePermissionsPreferences(permNotifications, permRingtone, permVibration, val);
+                    }}
+                    trackColor={{ false: '#CBD5E1', true: '#1C355E' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
               <TouchableOpacity
-                style={styles.configCancelBtn}
-                onPress={() => setShowConfigModal(false)}
+                style={styles.testAlertBtnInline}
+                onPress={handleTriggerTestAlarm}
               >
-                <Text style={styles.configCancelBtnText}>Cancel</Text>
+                <Text style={styles.testAlertBtnText}>Test Ringtone & Vibration</Text>
               </TouchableOpacity>
 
+              {/* Server Connection Section */}
+              <Text style={[styles.settingsSectionHeader, { marginTop: 20 }]}>SERVER CONNECTION</Text>
+              <Text style={styles.configModalSub}>
+                Enter your Mac's Wi-Fi IP address so your phone loads the live platform and receives real alarms.
+              </Text>
+
+              <Text style={styles.inputLabel}>Mac Wi-Fi IP Address:</Text>
+              <TextInput
+                style={styles.textInput}
+                value={customHostInput}
+                onChangeText={setCustomHostInput}
+                placeholder="e.g. 172.16.36.36"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
               <TouchableOpacity
-                style={styles.configSaveBtn}
+                style={styles.configSaveBtnFull}
                 onPress={() => {
                   const cleaned = customHostInput.trim();
                   if (cleaned) {
                     setServerHost(cleaned);
                     setWebViewError(null);
                     setShowConfigModal(false);
-                    // Re-register push token with new backend URL
                     if (expoPushToken) {
                       registerWithBackend(expoPushToken, linkedProfile);
                     }
                   }
                 }}
               >
-                <Text style={styles.configSaveBtnText}>Save & Connect</Text>
+                <Text style={styles.configSaveBtnText}>Save IP & Reconnect</Text>
               </TouchableOpacity>
-            </View>
+
+              <TouchableOpacity
+                style={styles.resetOnboardingBtn}
+                onPress={() => {
+                  setShowConfigModal(false);
+                  setIsOnboardingCompleted(false);
+                }}
+              >
+                <Text style={styles.resetOnboardingBtnText}>View First-Time Permissions Screen</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -650,6 +1016,194 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  // Splash Start Page Styles
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#1C355E',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 50,
+    paddingHorizontal: 24,
+  },
+  splashContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashLogoWrapper: {
+    width: 130,
+    height: 130,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    elevation: 12,
+    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  splashTitle: {
+    fontSize: 34,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  splashSubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#93C5FD',
+    textAlign: 'center',
+    marginBottom: 36,
+  },
+  splashLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  splashLoadingText: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  splashFooter: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+
+  // First-Time Permissions Onboarding Styles
+  onboardingSafeArea: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  onboardingScroll: {
+    padding: 24,
+    paddingBottom: 40,
+  },
+  onboardingHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 10,
+  },
+  onboardingLogo: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: 16,
+  },
+  onboardingTag: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  onboardingTagText: {
+    color: '#60A5FA',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  onboardingTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  onboardingDesc: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 8,
+  },
+  permsCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  permsCardInline: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  permInfo: {
+    flex: 1,
+    paddingRight: 14,
+  },
+  permLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    marginBottom: 2,
+  },
+  permSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    lineHeight: 16,
+  },
+  permDivider: {
+    height: 1,
+    backgroundColor: '#334155',
+    marginVertical: 4,
+  },
+  onboardingTestBtn: {
+    backgroundColor: '#334155',
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  onboardingTestBtnText: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  onboardingPrimaryBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  onboardingPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  // Main App Styles
   safeArea: {
     flex: 1,
     backgroundColor: '#1C355E',
@@ -744,10 +1298,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
-  },
-  errorEmoji: {
-    fontSize: 52,
-    marginBottom: 16,
   },
   errorTitle: {
     fontSize: 20,
@@ -909,19 +1459,37 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 390,
   },
   configModalTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 6,
+  },
+  settingsSectionHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  testAlertBtnInline: {
+    backgroundColor: '#1E293B',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  testAlertBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   configModalSub: {
     fontSize: 13,
     color: '#64748B',
     lineHeight: 18,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   inputLabel: {
     fontSize: 12,
@@ -937,47 +1505,40 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     color: '#0F172A',
-    marginBottom: 20,
+    marginBottom: 16,
     backgroundColor: '#F8FAFC',
   },
-  configButtonRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  configCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  configCancelBtnText: {
-    color: '#475569',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  configSaveBtn: {
-    flex: 1.5,
-    paddingVertical: 12,
-    borderRadius: 12,
+  configSaveBtnFull: {
     backgroundColor: '#1C355E',
+    paddingVertical: 13,
+    borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 10,
   },
   configSaveBtnText: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
   },
+  resetOnboardingBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  resetOnboardingBtnText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   closeBtnText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#2563EB',
     padding: 4,
   },
   tokenDisplay: {

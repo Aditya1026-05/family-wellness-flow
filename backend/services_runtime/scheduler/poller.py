@@ -160,7 +160,8 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"Alarm: Time for {task.title}!" if is_alarm else f"Time for {task.title}"
+            is_sound = bool(getattr(task, 'ring_sound', False))
+            title = f"Alarm: Time for {task.title}!" if (is_alarm or is_sound) else f"Time for {task.title}"
             body = task.detail or task.notes or f"Time to complete {task.title} ({task.category})."
 
             notif = Notification(
@@ -183,7 +184,8 @@ async def poll_and_dispatch_reminders(
                     "stage": 0,
                     "stage_name": "initial_due",
                     "ring_alarm": is_alarm,
-                    "is_urgent": is_alarm,
+                    "ring_sound": is_sound,
+                    "is_urgent": is_alarm or is_sound,
                     "task_instance_id": str(inst.id),
                     "task_id": str(task.id),
                     "category": task.category,
@@ -192,8 +194,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default",
-                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
+                sound="default" if is_sound else None,
+                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -215,7 +217,8 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"Alarm Reminder: {task.title} is waiting" if is_alarm else f"Reminder: {task.title} is waiting"
+            is_sound = bool(getattr(task, 'ring_sound', False))
+            title = f"Alarm Reminder: {task.title} is waiting" if (is_alarm or is_sound) else f"Reminder: {task.title} is waiting"
             body = f"{task.title} was scheduled for {task.scheduled_time}. Please complete it when ready."
 
             notif = Notification(
@@ -238,7 +241,8 @@ async def poll_and_dispatch_reminders(
                     "stage": 1,
                     "stage_name": "15m_overdue",
                     "ring_alarm": is_alarm,
-                    "is_urgent": is_alarm,
+                    "ring_sound": is_sound,
+                    "is_urgent": is_alarm or is_sound,
                     "task_instance_id": str(inst.id),
                     "task_id": str(task.id),
                     "category": task.category,
@@ -247,8 +251,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default",
-                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
+                sound="default" if is_sound else None,
+                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -270,7 +274,8 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"Urgent Alarm: {task.title} is 30m overdue!" if is_alarm else f"2nd Reminder: {task.title} is overdue"
+            is_sound = bool(getattr(task, 'ring_sound', False))
+            title = f"Urgent Alarm: {task.title} is 30m overdue!" if (is_alarm or is_sound) else f"2nd Reminder: {task.title} is overdue"
             body = f"Important: {task.title} is 30 minutes past due. Please complete this task."
 
             notif = Notification(
@@ -293,7 +298,8 @@ async def poll_and_dispatch_reminders(
                     "stage": 2,
                     "stage_name": "30m_overdue",
                     "ring_alarm": is_alarm,
-                    "is_urgent": is_alarm,
+                    "ring_sound": is_sound,
+                    "is_urgent": is_alarm or is_sound,
                     "task_instance_id": str(inst.id),
                     "task_id": str(task.id),
                     "category": task.category,
@@ -302,8 +308,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default",
-                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
+                sound="default" if is_sound else None,
+                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -367,7 +373,7 @@ async def poll_and_dispatch_reminders(
                 },
                 priority="high",
                 sound="default",
-                channel_id="urgent_alarm" if is_alarm else "carecircle-reminders",
+                channel_id="urgent_alarm_v2" if is_alarm else "carecircle-reminders",
             )
             await dispatcher.dispatch_to_recipient(
                 db=db,
@@ -430,7 +436,7 @@ async def poll_and_dispatch_reminders(
                     },
                     priority="high",
                     sound="default",
-                    channel_id="urgent_alarm",
+                    channel_id="urgent_alarm_v2",
                 )
 
                 await dispatcher.dispatch_to_recipient(

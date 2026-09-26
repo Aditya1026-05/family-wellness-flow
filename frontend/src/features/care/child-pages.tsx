@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Bell, CalendarDays, Check, CheckCircle2, ClipboardList, Copy, Download, Heart, Pencil, Plus, QrCode, Share2, Trash2, TrendingUp, Users } from 'lucide-react';
+import { Activity, ArrowLeft, Bell, CalendarDays, Check, CheckCircle2, ClipboardList, Copy, Download, Heart, Pencil, Plus, QrCode, Share2, Trash2, TrendingUp, Users, Volume2, Vibrate } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -721,6 +721,7 @@ export function CreateTaskPage() {
   const [repeat, setRepeat] = useState('Daily');
   const [notes, setNotes] = useState('');
   const [ringAlarm, setRingAlarm] = useState(true);
+  const [ringSound, setRingSound] = useState(true);
 
   if (!parents.length) {
     return (
@@ -734,6 +735,7 @@ export function CreateTaskPage() {
     setCategory(val);
     if (val === 'Medicine' || val === 'Meal') {
       setRingAlarm(true);
+      setRingSound(true);
     }
   };
 
@@ -783,6 +785,8 @@ export function CreateTaskPage() {
       detail: notes,
       ring_alarm: ringAlarm,
       ringAlarm: ringAlarm,
+      ring_sound: ringSound,
+      ringSound: ringSound,
     });
     navigate({ to: '/tasks' });
   };
@@ -862,29 +866,60 @@ export function CreateTaskPage() {
           </div>
         </div>
 
-        {/* Urgent Task Alarm Toggle */}
-        <div className="flex items-center justify-between rounded-xl border border-card-border bg-card/80 p-4 transition-colors">
-          <div className="space-y-1 pr-4">
-            <div className="flex items-center gap-2">
-              <Bell className="size-4 text-primary shrink-0" />
-              <Label htmlFor="task-ring-alarm" className="font-semibold text-foreground cursor-pointer">
-                Ring phone like an alarm (Urgent task)
-              </Label>
-              {ringAlarm && (
-                <span className="rounded-full bg-red-100 dark:bg-red-950/50 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400">
-                  Alarm ON
-                </span>
-              )}
+        {/* Ringtone Sound & Vibration Alarm Separate Toggles */}
+        <div className="space-y-2.5">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Alert Delivery Options</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* 1. Ring Phone (Sound) */}
+            <div className="flex items-center justify-between rounded-xl border border-card-border bg-card/80 p-3.5 transition-colors">
+              <div className="space-y-0.5 pr-3">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="size-4 text-primary shrink-0" />
+                  <Label htmlFor="task-ring-sound" className="text-xs font-semibold text-foreground cursor-pointer">
+                    Ring phone (Sound)
+                  </Label>
+                  {ringSound && (
+                    <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                      Ringtone ON
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Plays phone's native default ringtone out loud when scheduled.
+                </p>
+              </div>
+              <Switch
+                id="task-ring-sound"
+                checked={ringSound}
+                onCheckedChange={setRingSound}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Rings loudly with sound and vibration on parent's phone at task time and follow-up intervals until completed.
-            </p>
+
+            {/* 2. Vibrate / Alarm Alert */}
+            <div className="flex items-center justify-between rounded-xl border border-card-border bg-card/80 p-3.5 transition-colors">
+              <div className="space-y-0.5 pr-3">
+                <div className="flex items-center gap-2">
+                  <Vibrate className="size-4 text-primary shrink-0" />
+                  <Label htmlFor="task-ring-alarm" className="text-xs font-semibold text-foreground cursor-pointer">
+                    Vibrate phone (Alarm)
+                  </Label>
+                  {ringAlarm && (
+                    <span className="rounded-full bg-rose-100 dark:bg-rose-950/50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400">
+                      Vibrate ON
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Vibrates continuously and shows urgent full-screen alert.
+                </p>
+              </div>
+              <Switch
+                id="task-ring-alarm"
+                checked={ringAlarm}
+                onCheckedChange={setRingAlarm}
+              />
+            </div>
           </div>
-          <Switch
-            id="task-ring-alarm"
-            checked={ringAlarm}
-            onCheckedChange={setRingAlarm}
-          />
         </div>
 
         <div>
@@ -954,6 +989,45 @@ export function ProfilePage() {
           <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow">
             <SettingsRow icon={Users} title="Your circle" detail={`${parents.length} parents connected`}/>
             <SettingsRow icon={Heart} title="CareCircle family" detail={`${fullName.split(' ')[0]}'s family`}/>
+          </div>
+        </section>
+        <section>
+          <SectionTitle title="Alert & Device Permissions"/>
+          <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow divide-y divide-border/60">
+            <SettingsRow icon={Bell} title="Push notifications" detail="Receive scheduled task reminders and overdue care alerts">
+              <Switch defaultChecked aria-label="Toggle notifications"/>
+            </SettingsRow>
+            <SettingsRow icon={Volume2} title="Ringtone alerts" detail="Play device native ringtone when urgent care tasks are due">
+              <Switch defaultChecked aria-label="Toggle ringtone"/>
+            </SettingsRow>
+            <SettingsRow icon={Vibrate} title="Vibration" detail="Vibrate phone on incoming care reminders and alarms">
+              <Switch defaultChecked aria-label="Toggle vibration"/>
+            </SettingsRow>
+            <SettingsRow icon={ShieldCheck} title="High-priority & lockscreen" detail="Display full-screen alarm even when device is locked">
+              <Switch defaultChecked aria-label="Toggle lockscreen"/>
+            </SettingsRow>
+          </div>
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+                  try {
+                    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'TEST_ALARM' }));
+                  } catch {}
+                } else {
+                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                    navigator.vibrate([0, 500, 200, 500]);
+                  }
+                  alert('Alert & Vibration Test: Native alert triggers successfully on your device.');
+                }
+              }}
+              className="w-full rounded-xl text-xs font-semibold gap-1.5 h-9"
+            >
+              <Bell className="size-3.5" /> Test Ringtone & Vibration
+            </Button>
           </div>
         </section>
         <section>

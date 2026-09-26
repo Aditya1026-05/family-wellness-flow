@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee, Lock } from 'lucide-react';
+import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee, Lock, Settings, Volume2, Vibrate, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Brand, CategoryIcon, EmptyState, StatusBadge } from './components';
 import { useCareStore } from './store';
 import { defaultHistory } from './data';
@@ -13,6 +21,7 @@ import { AdherenceTracker } from './adherence-view';
 
 export function ParentShell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: s => s.location.pathname });
+  const [showSettings, setShowSettings] = useState(false);
   const links = [
     { to: '/parent/home', label: 'Next', icon: Clock3 },
     { to: '/parent/today', label: 'Today', icon: CalendarDays },
@@ -28,6 +37,12 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
             <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-primary dark:bg-blue-950 dark:text-blue-300">
               Parent view
             </span>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
+            >
+              <Settings className="size-3.5" /> Settings
+            </button>
             <button
               onClick={() => {
                 api.auth.disconnectParent();
@@ -66,6 +81,89 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+
+      {/* Parent Settings & Permissions Modal */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="sm:max-w-md p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Alert & Device Permissions</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Configure how alarms, ringtones, and reminders behave on this phone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <div className="space-y-0.5 pr-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Bell className="size-4 text-primary" /> Task Reminders
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Show notifications when daily care routines are due.
+                </p>
+              </div>
+              <Switch defaultChecked />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <div className="space-y-0.5 pr-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Volume2 className="size-4 text-primary" /> Phone Ringtone
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Rings phone out loud using your native ringtone for urgent tasks.
+                </p>
+              </div>
+              <Switch defaultChecked />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <div className="space-y-0.5 pr-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Vibrate className="size-4 text-primary" /> Vibration Alert
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Vibrates phone continuously until task is acknowledged.
+                </p>
+              </div>
+              <Switch defaultChecked />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <div className="space-y-0.5 pr-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ShieldCheck className="size-4 text-primary" /> Lockscreen Priority
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Shows full alarm card directly on lockscreen.
+                </p>
+              </div>
+              <Switch defaultChecked />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+                  try {
+                    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'TEST_ALARM' }));
+                  } catch {}
+                } else {
+                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                    navigator.vibrate([0, 500, 200, 500]);
+                  }
+                  alert('Alert & Vibration Test: Ringtone and vibration triggers successfully.');
+                }
+              }}
+              className="w-full rounded-xl text-xs font-semibold gap-1.5 h-10 mt-2"
+            >
+              <Bell className="size-4" /> Test Ringtone & Vibration
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

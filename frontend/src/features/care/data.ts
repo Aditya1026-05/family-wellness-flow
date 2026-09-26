@@ -31,6 +31,8 @@ export type CareTask = {
   detail?: string;
   ring_alarm?: boolean;
   ringAlarm?: boolean;
+  ring_sound?: boolean;
+  ringSound?: boolean;
   reminder_stage?: number;
   reminderStage?: number;
   is_ended?: boolean;

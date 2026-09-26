@@ -149,6 +149,7 @@ class TaskService:
         repeat = task_in.repeat_pattern or task_in.repeat or "Daily"
         notes = task_in.notes or task_in.detail
         ring_alarm = bool(task_in.ring_alarm if task_in.ring_alarm is not None else task_in.ringAlarm)
+        ring_sound = bool(task_in.ring_sound if task_in.ring_sound is not None else task_in.ringSound)
 
         task = CareTask(
             family_id=family_id,
@@ -161,6 +162,7 @@ class TaskService:
             notes=notes,
             detail=notes,
             ring_alarm=ring_alarm,
+            ring_sound=ring_sound,
             is_active=True,
         )
         db.add(task)
@@ -214,6 +216,8 @@ class TaskService:
             detail=task.detail,
             ring_alarm=task.ring_alarm,
             ringAlarm=task.ring_alarm,
+            ring_sound=getattr(task, 'ring_sound', False),
+            ringSound=getattr(task, 'ring_sound', False),
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,
@@ -338,6 +342,8 @@ class TaskService:
                     detail=t.detail,
                     ring_alarm=t.ring_alarm,
                     ringAlarm=t.ring_alarm,
+                    ring_sound=getattr(t, 'ring_sound', False),
+                    ringSound=getattr(t, 'ring_sound', False),
                     is_active=t.is_active,
                     is_ended=is_ended,
                     isEnded=is_ended,
@@ -414,6 +420,8 @@ class TaskService:
                     reminderStage=inst.reminder_stage,
                     ring_alarm=task.ring_alarm if task else False,
                     ringAlarm=task.ring_alarm if task else False,
+                    ring_sound=getattr(task, 'ring_sound', False) if task else False,
+                    ringSound=getattr(task, 'ring_sound', False) if task else False,
                     repeat=repeat,
                     repeat_pattern=repeat,
                     completed_at=inst.completed_at,
@@ -628,6 +636,8 @@ class TaskService:
             reminderStage=inst.reminder_stage,
             ring_alarm=task.ring_alarm if task else False,
             ringAlarm=task.ring_alarm if task else False,
+            ring_sound=getattr(task, 'ring_sound', False) if task else False,
+            ringSound=getattr(task, 'ring_sound', False) if task else False,
             repeat=task.repeat_pattern if task else "Daily",
             repeat_pattern=task.repeat_pattern if task else "Daily",
             completed_at=inst.completed_at,
@@ -724,6 +734,8 @@ class TaskService:
             reminderStage=inst.reminder_stage,
             ring_alarm=task.ring_alarm if task else False,
             ringAlarm=task.ring_alarm if task else False,
+            ring_sound=getattr(task, 'ring_sound', False) if task else False,
+            ringSound=getattr(task, 'ring_sound', False) if task else False,
             repeat=task.repeat_pattern if task else "Daily",
             repeat_pattern=task.repeat_pattern if task else "Daily",
             completed_at=inst.completed_at,
@@ -825,6 +837,8 @@ class TaskService:
             detail=task.detail,
             ring_alarm=task.ring_alarm,
             ringAlarm=task.ring_alarm,
+            ring_sound=getattr(task, 'ring_sound', False),
+            ringSound=getattr(task, 'ring_sound', False),
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,
@@ -912,6 +926,9 @@ class TaskService:
 
         if task_in.ring_alarm is not None or task_in.ringAlarm is not None:
             task.ring_alarm = bool(task_in.ring_alarm if task_in.ring_alarm is not None else task_in.ringAlarm)
+
+        if task_in.ring_sound is not None or task_in.ringSound is not None:
+            task.ring_sound = bool(task_in.ring_sound if task_in.ring_sound is not None else task_in.ringSound)
 
         db.commit()
         db.refresh(task)
@@ -1002,6 +1019,8 @@ class TaskService:
             detail=task.detail,
             ring_alarm=task.ring_alarm,
             ringAlarm=task.ring_alarm,
+            ring_sound=getattr(task, 'ring_sound', False),
+            ringSound=getattr(task, 'ring_sound', False),
             is_active=task.is_active,
             is_ended=is_ended,
             isEnded=is_ended,
