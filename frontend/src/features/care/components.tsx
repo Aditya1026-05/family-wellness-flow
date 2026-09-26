@@ -106,6 +106,16 @@ export function ChildShell({
     useCareStore.getState().reset();
   };
 
+  const isDevOrTesting = Boolean(
+    import.meta.env.DEV ||
+    (typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.search.includes('test') ||
+      window.location.search.includes('dev')
+    ))
+  );
+
   const todayDateFormatted = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
@@ -183,13 +193,15 @@ export function ChildShell({
             <p className="text-xs text-muted-foreground">Your family, in one gentle view</p>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              to="/parent/home"
-              className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted"
-            >
-              <UserRound className="size-3.5" />
-              <span>Parent view</span>
-            </Link>
+            {isDevOrTesting && (
+              <Link
+                to="/parent/home"
+                className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted"
+              >
+                <UserRound className="size-3.5" />
+                <span>Parent view</span>
+              </Link>
+            )}
             <Link
               to="/alerts"
               className="relative grid size-10 place-items-center rounded-xl bg-card border border-border hover:bg-muted transition text-foreground"
@@ -218,12 +230,14 @@ export function ChildShell({
           <div className="mb-5 lg:hidden flex items-center justify-between">
             <Brand />
             <div className="flex items-center gap-2">
-              <Link
-                to="/parent/home"
-                className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
-              >
-                Parent view
-              </Link>
+              {isDevOrTesting && (
+                <Link
+                  to="/parent/home"
+                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                >
+                  Parent view
+                </Link>
+              )}
               <Link
                 to="/alerts"
                 className="relative grid size-9 place-items-center rounded-lg bg-card border text-foreground"
