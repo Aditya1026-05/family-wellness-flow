@@ -527,15 +527,14 @@ class TaskService:
             is_ended = _is_datetime_past(inst.scheduled_for + timedelta(hours=1), now)
 
         if inst.scheduled_for and is_parent:
-            # Allow parent to complete starting 15 minutes before scheduled start
-            start_window = inst.scheduled_for - timedelta(minutes=15)
-            if not _is_datetime_past(start_window, now):
+            # Strict slot enforcement: parent cannot complete before the scheduled start time
+            if not _is_datetime_past(inst.scheduled_for, now):
                 is_not_started = True
 
         if is_parent and is_ended:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Task scheduled time has ended. Only a family caregiver can mark it completed now.",
+                detail="Task scheduled time has ended. You can only complete tasks during their scheduled time slot.",
             )
 
         if is_parent and is_not_started:

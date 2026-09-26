@@ -282,22 +282,24 @@ export function ParentHomePage() {
     })
     .sort((a, b) => a.startM - b.startM);
 
-  // 1. Is there a task scheduled for this time slot (from 30 mins before start to 30 mins after end)?
+  // 1. Strict time slot: only tasks where current time is strictly within [startM, endM]
   const currentSlotItem = pendingItems.find(item => {
-    return currentMinutes >= item.startM - 30 && currentMinutes <= item.endM + 30;
+    return currentMinutes >= item.startM && currentMinutes <= item.endM;
   });
 
-  // 2. Is there an overdue task earlier today that was missed/still pending?
-  const overdueItem = pendingItems.find(item => {
-    return currentMinutes > item.endM + 30;
+  // 2. Next upcoming task (future slot):
+  const nextUpcomingItem = pendingItems.find(item => {
+    return currentMinutes < item.startM;
   });
 
-  // Pick active task: currently due first, otherwise overdue task
-  const activeItem = currentSlotItem || overdueItem;
+  // 3. Expired tasks whose slot ended earlier today:
+  const expiredItems = pendingItems.filter(item => {
+    return currentMinutes > item.endM;
+  });
+
+  // Active task that can be completed right now: ONLY currentSlotItem!
+  const activeItem = currentSlotItem;
   const active = activeItem?.task;
-  const isOverdue = !!overdueItem && !currentSlotItem && activeItem === overdueItem;
-  const nextUpcomingItem = !activeItem && pendingItems.length > 0 ? pendingItems[0] : null;
-
   const isEnded = active ? (active.is_ended || active.isEnded) : false;
   const timeLabel = active ? (active.endTime || active.scheduled_end_time ? `${active.time || active.scheduled_time} – ${active.endTime || active.scheduled_end_time}` : (active.time || active.scheduled_time)) : '';
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
@@ -320,7 +322,7 @@ export function ParentHomePage() {
           </div>
 
           <p className="mt-8 text-xs font-bold uppercase tracking-[.15em] text-primary">
-            {isOverdue ? 'Needs attention' : 'Your next step'}
+            Active time slot
           </p>
           <h1 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl text-foreground leading-tight">
             {active.name || active.title}
@@ -392,7 +394,7 @@ export function ParentHomePage() {
           <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-border bg-muted/30 p-4 text-left">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Next Upcoming
+                Upcoming next
               </span>
               <span className="text-xs font-semibold text-primary">
                 {nextUpcomingItem.task.time || nextUpcomingItem.task.scheduled_time}
@@ -406,12 +408,15 @@ export function ParentHomePage() {
                 {nextUpcomingItem.task.detail || nextUpcomingItem.task.notes}
               </p>
             )}
+            <p className="mt-2 text-[11px] text-muted-foreground border-t border-border/60 pt-2">
+              🔒 Unlocks during its scheduled time slot.
+            </p>
           </div>
 
           <div className="mt-6 flex flex-col gap-2.5 sm:flex-row justify-center max-w-sm mx-auto">
             <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-xs font-bold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
               <Clock3 className="size-4 shrink-0 text-rose-600" />
-              <span>Available in time slot ({nextUpcomingItem.task.time || nextUpcomingItem.task.scheduled_time})</span>
+              <span>Opens at {nextUpcomingItem.task.time || nextUpcomingItem.task.scheduled_time}</span>
             </div>
             <Button
               asChild
@@ -422,6 +427,27 @@ export function ParentHomePage() {
                 Today's list ({pendingItems.length})
               </Link>
             </Button>
+          </div>
+        </div>
+      ) : expiredItems.length > 0 ? (
+        <div className="mt-6 rounded-[2rem] border border-border bg-card p-7 text-center shadow-xl shadow-slate-200/40 md:p-10">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-amber-50 text-amber-600 dark:bg-amber-950/40">
+            <Clock3 className="size-8" />
+          </div>
+
+          <span className="mt-6 inline-block rounded-full bg-amber-100 px-3.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            TIME SLOT ENDED
+          </span>
+
+          <h2 className="mt-4 font-display text-2xl sm:text-3xl text-foreground">
+            No active task right now
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The scheduled time window for earlier care actions has passed.
+          </p>
+
+          <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs leading-relaxed text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+            Tasks can only be completed by parents during their designated time slot. Please check with your family coordinator to update past tasks.
           </div>
         </div>
       ) : (
@@ -486,16 +512,18 @@ export function ParentTodayPage() {
       <div className="mt-8 space-y-3">
         {tasks.length ? tasks.map(t => {
           const parentStatus = t.status;
-          const isEnded = (t.is_ended || t.isEnded) && parentStatus !== 'completed';
+          const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
+          const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
+          const currentM = new Date().getHours() * 60 + new Date().getMinutes();
+          const isBeforeSlot = currentM < startM;
+          const isAfterSlot = currentM > endM;
+          const isInSlot = currentM >= startM && currentM <= endM;
+          const isEnded = (t.is_ended || t.isEnded || isAfterSlot) && parentStatus !== 'completed';
           const timeLabel = (t.endTime || t.scheduled_end_time)
             ? `${t.time || t.scheduled_time} – ${t.endTime || t.scheduled_end_time}`
             : (t.time || t.scheduled_time);
           const completedTimeStr = t.completedTime || t.completed_time;
           const isTaskCompleted = parentStatus === 'completed';
-
-          const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
-          const currentM = new Date().getHours() * 60 + new Date().getMinutes();
-          const isUpcoming = currentM < startM - 30;
 
           return (
             <div key={t.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 card-shadow">
@@ -506,8 +534,8 @@ export function ParentTodayPage() {
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                     : isEnded || parentStatus === 'missed'
                     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                    : isUpcoming
-                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                    : isBeforeSlot
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
                     : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                 )}
               >
@@ -536,10 +564,12 @@ export function ParentTodayPage() {
                 <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700 dark:bg-red-950 dark:text-red-300">Ended</span>
               ) : parentStatus === 'missed' ? (
                 <StatusBadge status="missed" />
-              ) : isUpcoming ? (
-                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">Opens at {t.time || t.scheduled_time}</span>
+              ) : isBeforeSlot ? (
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">Opens at {t.time || t.scheduled_time}</span>
+              ) : isInSlot ? (
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Due now (In slot)</span>
               ) : (
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Due now</span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">Scheduled</span>
               )}
             </div>
           );

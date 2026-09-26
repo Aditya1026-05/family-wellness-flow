@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.deps import get_caller_identity
-from app.schemas.task import TaskInstanceOut, TaskAction
+from app.schemas.task import TaskInstanceOut, TaskAction, TaskCompleteIn
 from app.services.task_service import task_service
 
 router = APIRouter(prefix="/task-instances", tags=["Task Instances"])
@@ -26,11 +26,27 @@ def get_parent_active_task(
 @router.post("/{instance_or_task_id}/complete", response_model=TaskInstanceOut)
 def complete_task(
     instance_or_task_id: str,
+    payload: Optional[TaskCompleteIn] = None,
     db: Session = Depends(get_db),
     actor: dict = Depends(get_caller_identity),
 ):
-    is_parent = (actor.get("role") == "parent")
-    return task_service.complete_task(db, instance_or_task_id, is_parent=is_parent)
+    is_parent = (actor.get("role") == "parent") or bool(payload and (payload.parent_ids or payload.parentIds))
+    target_parent_ids = None
+    if payload:
+        if payload.parent_ids:
+            target_parent_ids = payload.parent_ids
+        elif payload.parentIds:
+            target_parent_ids = payload.parentIds
+        elif payload.parent_id:
+            target_parent_ids = [payload.parent_id]
+        elif payload.parentId:
+            target_parent_ids = [payload.parentId]
+    return task_service.complete_task(
+        db,
+        instance_or_task_id,
+        is_parent=is_parent,
+        target_parent_ids=target_parent_ids,
+    )
 
 @router.post("/{instance_or_task_id}/snooze", response_model=TaskInstanceOut)
 def snooze_task(
