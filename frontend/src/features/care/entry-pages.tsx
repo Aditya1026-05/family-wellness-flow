@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Heart, HeartHandshake, ShieldCheck, Smile, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,21 +6,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Brand } from './components';
 import { useCareStore } from './store';
-import { api } from '@/lib/api';
+import { api, getCurrentParentProfile, getAuthToken } from '@/lib/api';
 
 export function LandingPage() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const parent = getCurrentParentProfile();
+    const token = getAuthToken();
+    if (parent) {
+      navigate({ to: '/parent/home', replace: true });
+    } else if (token) {
+      navigate({ to: '/dashboard', replace: true });
+    }
+  }, [navigate]);
   return (
     <div className="min-h-[100dvh] overflow-hidden bg-[#f7f9fc] dark:bg-background">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-6">
         <Brand />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/login"
-            className="hidden rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-muted sm:block"
+            className="rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             Sign in
           </Link>
-          <Button asChild className="rounded-xl px-4 py-2.5 text-sm font-semibold shadow-xs">
+          <Button asChild size="sm" className="rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold shadow-xs">
             <Link to="/register">Get started</Link>
           </Button>
         </div>
@@ -51,6 +62,13 @@ export function LandingPage() {
                 </Link>
               </Button>
             </div>
+
+            <p className="mt-4 text-xs text-muted-foreground text-center sm:text-left">
+              Already have an account?{' '}
+              <Link to="/login" className="font-bold text-primary hover:underline">
+                Sign in here
+              </Link>
+            </p>
 
             <div className="mt-12 flex flex-wrap items-center gap-6 border-t border-border/70 pt-8 text-xs font-semibold text-muted-foreground">
               <div className="flex items-center gap-2">

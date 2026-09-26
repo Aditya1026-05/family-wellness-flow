@@ -28,12 +28,14 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
             <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-primary dark:bg-blue-950 dark:text-blue-300">
               Parent view
             </span>
-            <Link
-              to="/dashboard"
+            <button
+              onClick={() => {
+                api.auth.disconnectParent();
+              }}
               className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
             >
               <ArrowLeft className="size-3.5" /> Exit
-            </Link>
+            </button>
           </div>
         </div>
       </header>
