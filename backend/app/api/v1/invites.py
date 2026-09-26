@@ -113,4 +113,6 @@ def accept_invite(
         db=db,
         raw_code=accept_in.code,
         device_name=accept_in.device_name,
+        device_token=accept_in.device_token,
+        platform=accept_in.platform,
     )

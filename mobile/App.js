@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  ScrollView,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -13,11 +12,14 @@ import {
   Modal,
   Vibration,
   Platform,
+  TextInput,
+  Dimensions,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
-// Configure how notifications appear when the app is in the foreground
+// Configure how notifications appear when app is foregrounded
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const isUrgent = Boolean(
@@ -35,7 +37,7 @@ Notifications.setNotificationHandler({
   },
 });
 
-// Configure Android Notification Channels for High Importance & Alarms
+// Configure Android Notification Channels for High Importance & Urgent Alarms
 if (Platform.OS === 'android') {
   Notifications.setNotificationChannelAsync('urgent_alarm', {
     name: 'Urgent Task Alarms',
@@ -45,38 +47,41 @@ if (Platform.OS === 'android') {
     sound: 'default',
     enableVibrate: true,
   });
-  Notifications.setNotificationChannelAsync('default', {
+  Notifications.setNotificationChannelAsync('carecircle-reminders', {
     name: 'Care Reminders',
     importance: Notifications.AndroidImportance.HIGH,
     sound: 'default',
   });
 }
 
-// Default to your Mac local network IP
-const BACKEND_URL = 'http://172.16.36.36:8001';
-const WEB_APP_URL = 'http://172.16.36.36:8080';
+// Current Mac local network IP
+const DEFAULT_HOST = '172.16.36.36';
 
 export default function App() {
+  const [serverHost, setServerHost] = useState(DEFAULT_HOST);
+  const [serverPort, setServerPort] = useState('8080');
+  const [backendPort, setBackendPort] = useState('8001');
+
   const [expoPushToken, setExpoPushToken] = useState('');
   const [isRegistered, setIsRegistered] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [statusMessage, setStatusMessage] = useState('Initializing push notifications...');
-  const [notificationHistory, setNotificationHistory] = useState([]);
-  const [sendingTest, setSendingTest] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  // Active ringing alarm modal state
+  const [linkedProfile, setLinkedProfile] = useState(null); // { role, name, id }
   const [activeAlarmTask, setActiveAlarmTask] = useState(null);
-  // Escalation alert state (Call parent)
-  const [activeCallEscalation, setActiveCallEscalation] = useState(null);
+  const [notificationHistory, setNotificationHistory] = useState([]);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [webViewError, setWebViewError] = useState(null);
+  const [customHostInput, setCustomHostInput] = useState(DEFAULT_HOST);
 
+  const webViewRef = useRef(null);
   const notificationListener = useRef();
   const responseListener = useRef();
 
-  // Handle continuous vibration when urgent alarm is ringing
+  const webAppUrl = `http://${serverHost}:${serverPort}`;
+  const backendUrl = `http://${serverHost}:${backendPort}`;
+
+  // Continuous vibration loop while alarm is ringing
   useEffect(() => {
     if (activeAlarmTask) {
-      // Vibrate pattern in loop: 500ms vibrate, 250ms pause, repeat
       const interval = setInterval(() => {
         Vibration.vibrate([0, 500, 250, 500]);
       }, 1500);
@@ -90,52 +95,7 @@ export default function App() {
     }
   }, [activeAlarmTask]);
 
-  const initPermissionsAndToken = async () => {
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
-        setStatusMessage('Permission Denied in iPhone Settings');
-        setErrorMessage('Expo Go needs notification permission. Open iPhone Settings > Expo Go > Notifications and turn "Allow Notifications" ON.');
-        setLoading(false);
-        return;
-      }
-
-      setStatusMessage('Permission granted! Fetching push token...');
-
-      let token;
-      try {
-        const tokenResult = await Notifications.getExpoPushTokenAsync({
-          projectId: '4a40ba56-204c-43ee-9de2-ff72dc1ca4d3',
-        });
-        token = tokenResult.data;
-      } catch (tokenErr) {
-        console.warn('Remote token fetch note:', tokenErr.message);
-        setErrorMessage(`Remote Token Notice: ${tokenErr.message}`);
-      }
-
-      if (token) {
-        setExpoPushToken(token);
-        setStatusMessage('Device Token Active & Ready');
-        await registerDeviceWithBackend(token);
-      } else {
-        setStatusMessage('Ready for Notifications (Local & In-App)');
-      }
-    } catch (err) {
-      setErrorMessage(err.message);
-      setStatusMessage('Error initializing');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Initialize native push token and permissions
   useEffect(() => {
     initPermissionsAndToken();
 
@@ -144,9 +104,9 @@ export default function App() {
       const isUrgent = Boolean(data?.ring_alarm || data?.is_urgent);
       const isCallAction = data?.action === 'call_parent';
 
-      const newEntry = {
-        id: Date.now(),
-        title: title || 'New Notification',
+      const entry = {
+        id: String(Date.now()),
+        title: title || 'Care Alert',
         body: body || '',
         data: data || {},
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -154,31 +114,20 @@ export default function App() {
         isCallAction,
         stage: data?.stage !== undefined ? data.stage : null,
       };
-      setNotificationHistory((prev) => [newEntry, ...prev]);
+      setNotificationHistory((prev) => [entry, ...prev]);
 
-      // If urgent alarm, trigger the full-screen ringing alarm dialog
-      if (isUrgent) {
+      // Pop native full-screen alarm modal with vibration loop
+      if (isUrgent || isCallAction) {
         setActiveAlarmTask({
-          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Task'),
-          body: body || (isCallAction ? `${data?.parent_name || 'Parent'} has not completed their task after 45 minutes.` : 'Please complete this urgent care task now.'),
+          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
+          body: body || '',
           taskId: data?.task_id || data?.task_instance_id || '1',
           taskTitle: data?.task_title || title || 'Care Task',
           category: data?.category || 'Medicine',
           stage: data?.stage,
-          isCallAction: isCallAction,
+          isCallAction,
           parentName: data?.parent_name || 'Parent',
           parentPhone: data?.parent_phone || '',
-        });
-      }
-
-      // If 45-minute escalation with call prompt
-      if (isCallAction) {
-        setActiveCallEscalation({
-          title: title || '⚠️ Care Alert Escalated',
-          body: body || '',
-          parentName: data?.parent_name || 'Parent',
-          parentPhone: data?.parent_phone || '',
-          taskTitle: data?.task_title || 'Care Task',
         });
       }
     });
@@ -188,83 +137,118 @@ export default function App() {
       const isUrgent = Boolean(data?.ring_alarm || data?.is_urgent);
       const isCallAction = data?.action === 'call_parent';
 
-      if (isUrgent) {
+      if (isUrgent || isCallAction) {
         setActiveAlarmTask({
-          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Task'),
-          body: body || (isCallAction ? `${data?.parent_name || 'Parent'} has not completed their task after 45 minutes.` : 'Please complete this task now.'),
+          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
+          body: body || '',
           taskId: data?.task_id || data?.task_instance_id || '1',
-          taskTitle: data?.task_title || title,
+          taskTitle: data?.task_title || title || 'Care Task',
           category: data?.category || 'Medicine',
           stage: data?.stage,
-          isCallAction: isCallAction,
+          isCallAction,
           parentName: data?.parent_name || 'Parent',
           parentPhone: data?.parent_phone || '',
         });
-      } else if (isCallAction) {
-        setActiveCallEscalation({
-          title,
-          body,
-          parentName: data?.parent_name || 'Parent',
-          parentPhone: data?.parent_phone || '',
-          taskTitle: data?.task_title || 'Care Task',
-        });
-      } else {
-        Alert.alert(`Opened: ${title}`, body);
       }
     });
 
     return () => {
-      if (notificationListener.current && notificationListener.current.remove) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current && responseListener.current.remove) {
-        responseListener.current.remove();
-      }
+      if (notificationListener.current?.remove) notificationListener.current.remove();
+      if (responseListener.current?.remove) responseListener.current.remove();
     };
   }, []);
 
-  async function registerDeviceWithBackend(token) {
+  async function initPermissionsAndToken() {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/devices/register`, {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '4c7bc70d-ec44-46d3-9f5b-b9f18a223ad0',
+      }).catch(async () => {
+        return await Notifications.getExpoPushTokenAsync();
+      });
+
+      if (tokenData?.data) {
+        setExpoPushToken(tokenData.data);
+        // Initial registration with backend
+        await registerWithBackend(tokenData.data);
+      }
+    } catch (e) {
+      console.log('Push token note:', e.message);
+    }
+  }
+
+  // Register device token with backend, optionally linked to a specific parent/user
+  async function registerWithBackend(token, linkData = null) {
+    try {
+      const payload = {
+        token: token,
+        platform: Platform.OS,
+        role: linkData?.role || 'both',
+        device_name: Device.modelName || 'Mobile Companion',
+        parent_profile_id: linkData?.parent_profile_id || undefined,
+        user_id: linkData?.user_id || undefined,
+      };
+
+      const res = await fetch(`${backendUrl}/api/v1/devices/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: token,
-          platform: Platform.OS,
-          role: 'both',
-          device_name: Device.modelName || 'Companion Device',
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setIsRegistered(true);
-        setStatusMessage('Synced with CareCircle Backend (Live Alarms Active)');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        console.log('Registration response status:', res.status, data);
+        if (linkData) {
+          setLinkedProfile(linkData);
+        }
       }
     } catch (err) {
       console.log('Backend sync note:', err.message);
     }
   }
 
-  // Complete task directly from the Alarm screen
+  // Bridge: handle messages posted by the web app inside the WebView
+  function handleWebViewMessage(event) {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'DEVICE_LINK') {
+        // Automatically link this physical device to the authenticated parent or child
+        setLinkedProfile(data);
+        if (expoPushToken) {
+          registerWithBackend(expoPushToken, data);
+        }
+      }
+    } catch (err) {
+      // Ignored if non-json
+    }
+  }
+
+  // Complete task from the full-screen native alarm modal
   async function handleCompleteFromAlarm() {
     Vibration.cancel();
     const task = activeAlarmTask;
     setActiveAlarmTask(null);
 
-    try {
-      if (task && task.taskId) {
-        await fetch(`${BACKEND_URL}/api/v1/tasks/${task.taskId}/complete`, {
+    if (task?.taskId) {
+      try {
+        await fetch(`${backendUrl}/api/v1/tasks/${task.taskId}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ all_parents: true }),
         });
+      } catch (e) {
+        console.log('Complete task note:', e.message);
       }
-      Alert.alert('✅ Task Completed!', 'Great job! Your caregiver has been notified that this task is complete.');
-    } catch (e) {
-      Alert.alert('Notice', 'Task completed locally. (Network sync will follow).');
+    }
+
+    // Reload webview so the UI updates
+    if (webViewRef.current) {
+      webViewRef.current.reload();
     }
   }
 
@@ -273,457 +257,147 @@ export default function App() {
     setActiveAlarmTask(null);
   }
 
-  function handleCallParent(phoneNumber) {
-    if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-        Alert.alert('Call Parent', `Dialing ${phoneNumber}...`);
-      });
-    } else {
-      Alert.alert('Call Parent', 'Opening phone dialer to call parent...');
-      Linking.openURL('tel:').catch(() => {});
+  function handleCallParent(phone) {
+    Vibration.cancel();
+    setActiveAlarmTask(null);
+    if (!phone) {
+      Alert.alert('No Phone Number', 'No phone number is saved for this parent.');
+      return;
     }
-  }
-
-  // Test 1: Urgent Ring Alarm
-  async function handleTestUrgentAlarm() {
-    setSendingTest(true);
-    try {
-      const payload = {
-        title: '⏰ URGENT ALARM: Morning Medicine!',
-        body: 'Dad, time to take your blood pressure medicine. Alarm is ringing!',
-        sound: 'default',
-        badge: 1,
-        data: {
-          taskId: 'test-med-task',
-          task_title: 'Blood Pressure Medicine',
-          category: 'Medicine',
-          ring_alarm: true,
-          is_urgent: true,
-          stage: 0,
-        },
-      };
-
-      if (expoPushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: expoPushToken,
-            ...payload,
-            channelId: 'urgent_alarm',
-            priority: 'high',
-          }),
-        });
-      } else {
-        await Notifications.scheduleNotificationAsync({
-          content: payload,
-          trigger: null,
-        });
-      }
-
-      // Also trigger alarm modal directly in app for immediate feedback
-      setActiveAlarmTask({
-        title: payload.title,
-        body: payload.body,
-        taskId: 'test-med-task',
-        taskTitle: 'Blood Pressure Medicine',
-        category: 'Medicine',
-        stage: 0,
-      });
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSendingTest(false);
-    }
-  }
-
-  // Test 2: 45-Minute Escalation with Call Parent Alarm
-  async function handleTestEscalationCallParent() {
-    setSendingTest(true);
-    try {
-      const payload = {
-        title: '🚨 Call Dad Alarm: Breakfast overdue!',
-        body: 'Dad has not completed his 8:00 AM Breakfast after 45 minutes. Ringing alarm to call him directly!',
-        sound: 'default',
-        badge: 2,
-        data: {
-          taskId: 'test-breakfast-task',
-          task_title: 'Breakfast',
-          action: 'call_parent',
-          ring_alarm: true,
-          is_urgent: true,
-          parent_name: 'Dad',
-          parent_phone: '+15551234567',
-          priority: 'High',
-          stage: 3,
-        },
-      };
-
-      if (expoPushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: expoPushToken,
-            ...payload,
-            channelId: 'urgent_alarm',
-            priority: 'high',
-          }),
-        });
-      } else {
-        await Notifications.scheduleNotificationAsync({
-          content: payload,
-          trigger: null,
-        });
-      }
-
-      setActiveCallEscalation({
-        title: payload.title,
-        body: payload.body,
-        parentName: 'Dad',
-        parentPhone: '+15551234567',
-        taskTitle: 'Breakfast',
-      });
-
-      // Trigger call parent alarm ringing dialog
-      setActiveAlarmTask({
-        title: payload.title,
-        body: payload.body,
-        taskId: 'test-breakfast-task',
-        taskTitle: 'Breakfast',
-        isCallAction: true,
-        parentName: 'Dad',
-        parentPhone: '+15551234567',
-        stage: 3,
-      });
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSendingTest(false);
-    }
-  }
-
-  // Test 3: Standard Gentle Reminder (0m)
-  async function handleSendStandardReminder() {
-    setSendingTest(true);
-    try {
-      const payload = {
-        title: 'Time for Morning Walk 🚶',
-        body: 'A gentle reminder for Morning Walk at 9:00 AM.',
-        sound: 'default',
-        badge: 1,
-        data: {
-          taskId: 'test-walk-task',
-          task_title: 'Morning Walk',
-          category: 'Exercise',
-          stage: 0,
-        },
-      };
-
-      if (expoPushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: expoPushToken,
-            ...payload,
-          }),
-        });
-      } else {
-        await Notifications.scheduleNotificationAsync({
-          content: payload,
-          trigger: null,
-        });
-      }
-
-      Alert.alert('🔔 Reminder Sent!', 'Gentle care reminder notification delivered.');
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSendingTest(false);
-    }
-  }
-
-  // Test 4: Simulate Full 4-Stage Timeline (0m -> 15m -> 30m -> 45m Call Parent)
-  async function handleSimulateFourStageTimeline() {
-    setSendingTest(true);
-    try {
-      const stages = [
-        {
-          stage: 0,
-          title: '⏰ Stage 0 (8:00 AM): Time for Medicine!',
-          body: 'Task time reached: Blood Pressure Medicine. Ringing alarm on parent device.',
-          ring_alarm: true,
-        },
-        {
-          stage: 1,
-          title: '⏰ Stage 1 (8:15 AM): Reminder: Medicine is waiting',
-          body: 'Not completed after 15 mins. 1st follow-up reminder sent to parent.',
-          ring_alarm: true,
-        },
-        {
-          stage: 2,
-          title: '⏰ Stage 2 (8:30 AM): 2nd Reminder: Medicine is 30m overdue!',
-          body: 'Still not completed after 30 mins. 2nd urgent alarm sent to parent.',
-          ring_alarm: true,
-        },
-        {
-          stage: 3,
-          title: '⚠️ Stage 3 (8:45 AM): Call Dad: Medicine missed!',
-          body: '45 mins reached without completion! Caregiver notified to call parent directly.',
-          action: 'call_parent',
-          parent_name: 'Dad',
-          parent_phone: '+15551234567',
-        },
-      ];
-
-      for (let i = 0; i < stages.length; i++) {
-        const item = stages[i];
-        if (expoPushToken) {
-          await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: expoPushToken,
-              title: item.title,
-              body: item.body,
-              sound: 'default',
-              data: {
-                stage: item.stage,
-                ring_alarm: Boolean(item.ring_alarm),
-                action: item.action || '',
-                parent_name: item.parent_name || 'Dad',
-                parent_phone: item.parent_phone || '',
-              },
-            }),
-          });
-        } else {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: item.title,
-              body: item.body,
-              sound: 'default',
-              data: {
-                stage: item.stage,
-                ring_alarm: Boolean(item.ring_alarm),
-                action: item.action || '',
-                parent_name: item.parent_name || 'Dad',
-                parent_phone: item.parent_phone || '',
-              },
-            },
-            trigger: null,
-          });
-        }
-      }
-
-      Alert.alert(
-        '🔄 4-Stage Timeline Delivered!',
-        'All 4 stages (0m Due -> 15m Retry -> 30m Retry -> 45m Call Parent) have been streamed to your screen!'
-      );
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSendingTest(false);
-    }
-  }
-
-  function handleOpenWebApp() {
-    Linking.openURL(WEB_APP_URL).catch(() => {
-      Alert.alert('Notice', `Unable to open ${WEB_APP_URL}. Ensure Mac and iPhone are on same Wi-Fi.`);
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      Alert.alert('Notice', `Unable to dial ${phone}`);
     });
   }
+
+  // Injected JS bridge so Web App can detect native shell and push token
+  const injectedBridgeScript = `
+    (function() {
+      window.CareCircleNative = {
+        isNative: true,
+        platform: '${Platform.OS}',
+        pushToken: '${expoPushToken}',
+      };
+      
+      // Auto-report existing session on boot
+      try {
+        var parentRaw = localStorage.getItem('carecircle_parent_profile');
+        if (parentRaw) {
+          var p = JSON.parse(parentRaw);
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'DEVICE_LINK',
+            role: 'parent',
+            parent_profile_id: p.parent_profile_id || p.id,
+            parent_name: p.parent_name || p.name
+          }));
+        }
+        var userRaw = localStorage.getItem('carecircle_user');
+        if (userRaw) {
+          var u = JSON.parse(userRaw);
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'DEVICE_LINK',
+            role: 'child',
+            user_id: u.id,
+            user_name: u.full_name || u.email
+          }));
+        }
+      } catch(e) {}
+    })();
+    true;
+  `;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerSubtitle}>FAMILY WELLNESS FLOW</Text>
-          <Text style={styles.headerTitle}>CareCircle Companion</Text>
-          <View style={styles.badgeRow}>
-            <View style={[styles.statusDot, { backgroundColor: isRegistered || expoPushToken ? '#10B981' : '#F59E0B' }]} />
-            <Text style={styles.badgeText}>
-              {loading ? 'Setting up...' : (expoPushToken ? 'Live Notifications & Alarms Active' : 'Action Required')}
-            </Text>
-          </View>
+
+      {/* Top Native Control Pill */}
+      <View style={styles.topBar}>
+        <View style={styles.statusGroup}>
+          <View style={[styles.statusDot, { backgroundColor: isRegistered ? '#10B981' : '#F59E0B' }]} />
+          <Text style={styles.statusLabel} numberOfLines={1}>
+            {linkedProfile
+              ? `👤 ${linkedProfile.parent_name || linkedProfile.user_name || 'Linked'}`
+              : (isRegistered ? 'CareCircle Native • Alarms Live' : 'Connecting to Server...')}
+          </Text>
         </View>
 
-        {/* Call Escalation Banner (45m overdue prompt) */}
-        {activeCallEscalation && (
-          <View style={styles.callEscalationBanner}>
-            <View style={styles.callBannerHeader}>
-              <Text style={styles.callBannerTitle}>{activeCallEscalation.title}</Text>
-              <TouchableOpacity onPress={() => setActiveCallEscalation(null)}>
-                <Text style={styles.callBannerDismiss}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.callBannerBody}>{activeCallEscalation.body}</Text>
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setShowHistoryModal(true)}
+          >
+            <Text style={styles.iconButtonText}>🔔</Text>
+            {notificationHistory.length > 0 && (
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{notificationHistory.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => {
+              setCustomHostInput(serverHost);
+              setShowConfigModal(true);
+            }}
+          >
+            <Text style={styles.iconButtonText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Main Standalone App Screen: Native WebView rendering CareCircle Platform */}
+      <View style={styles.webViewContainer}>
+        {webViewError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorEmoji}>🌐</Text>
+            <Text style={styles.errorTitle}>Unable to Reach CareCircle Server</Text>
+            <Text style={styles.errorBody}>
+              Could not connect to {webAppUrl}. Ensure your phone and Mac are connected to the same Wi-Fi network.
+            </Text>
             <TouchableOpacity
-              style={styles.callActionButton}
-              onPress={() => handleCallParent(activeCallEscalation.parentPhone)}
+              style={styles.retryButton}
+              onPress={() => {
+                setWebViewError(null);
+                webViewRef.current?.reload();
+              }}
             >
-              <Text style={styles.callActionButtonText}>
-                📞 Call {activeCallEscalation.parentName} Now
-              </Text>
+              <Text style={styles.retryButtonText}>🔄 Retry Connection</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.changeIpButton}
+              onPress={() => setShowConfigModal(true)}
+            >
+              <Text style={styles.changeIpButtonText}>⚙️ Change Server IP ({serverHost})</Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* Device Status Card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>DEVICE CONNECTION</Text>
-          <Text style={styles.statusDescription}>{statusMessage}</Text>
-          
-          {errorMessage ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
-              <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={() => Linking.openSettings()}
-              >
-                <Text style={styles.settingsButtonText}>⚙️ Open iPhone Settings</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.settingsButton, { backgroundColor: '#E2E8F0', marginTop: 6 }]}
-                onPress={initPermissionsAndToken}
-              >
-                <Text style={[styles.settingsButtonText, { color: '#1E293B' }]}>🔄 Re-check Permissions</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          <View style={styles.tokenBox}>
-            <Text style={styles.tokenLabel}>Push Notification Service:</Text>
-            {loading ? (
-              <ActivityIndicator color="#1C355E" style={{ marginVertical: 8 }} />
-            ) : (
-              <Text selectable style={styles.tokenText}>
-                {expoPushToken ? expoPushToken : 'Local notifications ready. Lock screen & sound enabled.'}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Multi-Stage & Urgent Alarm Testing Card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>NOTIFICATION & ALARM TESTING</Text>
-          <Text style={styles.subtext}>
-            Test the full multi-tier flow: 0m time reached, 15m & 30m reminders, 45m escalation (call parent), and urgent task ringing alarm!
-          </Text>
-
-          {/* Button 1: Urgent Ring Alarm */}
-          <TouchableOpacity
-            style={[styles.urgentAlarmButton, sendingTest && styles.disabledButton]}
-            onPress={handleTestUrgentAlarm}
-            disabled={sendingTest}
-          >
-            <Text style={styles.urgentAlarmButtonText}>
-              ⏰ Test Urgent Task Alarm (Rings & Vibrates)
-            </Text>
-          </TouchableOpacity>
-
-          {/* Button 2: 45m Escalation Call Parent */}
-          <TouchableOpacity
-            style={[styles.callParentTestButton, sendingTest && styles.disabledButton]}
-            onPress={handleTestEscalationCallParent}
-            disabled={sendingTest}
-          >
-            <Text style={styles.callParentTestButtonText}>
-              ⚠️ Test 45-Min Escalation (Call Parent Action)
-            </Text>
-          </TouchableOpacity>
-
-          {/* Button 3: Gentle Reminder */}
-          <TouchableOpacity
-            style={[styles.primaryButton, sendingTest && styles.disabledButton]}
-            onPress={handleSendStandardReminder}
-            disabled={sendingTest}
-          >
-            <Text style={styles.primaryButtonText}>
-              🔔 Test Gentle Reminder (Normal Task)
-            </Text>
-          </TouchableOpacity>
-
-          {/* Button 4: Full 4-Stage Timeline Simulation */}
-          <TouchableOpacity
-            style={[styles.timelineButton, sendingTest && styles.disabledButton]}
-            onPress={handleSimulateFourStageTimeline}
-            disabled={sendingTest}
-          >
-            <Text style={styles.timelineButtonText}>
-              🔄 Test 4-Stage Cycle (0m → 15m → 30m → 45m Call)
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Web App Link */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>WEB PORTAL ACCESS</Text>
-          <Text style={styles.subtext}>
-            Open the full CareCircle interactive web dashboard in Safari on your iPhone.
-          </Text>
-
-          <TouchableOpacity style={styles.outlineButton} onPress={handleOpenWebApp}>
-            <Text style={styles.outlineButtonText}>🌐 Open Web App (172.16.36.36:8080)</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Live Notification Feed */}
-        <View style={styles.card}>
-          <View style={styles.feedHeader}>
-            <Text style={styles.sectionTitle}>RECEIVED ALERTS STREAM</Text>
-            <Text style={styles.countBadge}>{notificationHistory.length}</Text>
-          </View>
-
-          {notificationHistory.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No notifications received yet.</Text>
-              <Text style={styles.emptySubtext}>Tap any test button above to test ringing & notifications!</Text>
-            </View>
-          ) : (
-            notificationHistory.map((item) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.notificationItem,
-                  item.isUrgent && styles.notificationItemUrgent,
-                  item.isCallAction && styles.notificationItemCall,
-                ]}
-              >
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemTime}>{item.time}</Text>
-                </View>
-
-                {item.stage !== null && (
-                  <View style={styles.stageTagRow}>
-                    <Text style={styles.stageTagText}>
-                      {item.stage === 0 ? 'T = 0m Due' : item.stage === 1 ? 'T = +15m Retry' : item.stage === 2 ? 'T = +30m Retry' : 'T = +45m Escalated'}
-                    </Text>
-                    {item.isUrgent && (
-                      <Text style={styles.alarmTagText}>⏰ Ring Alarm ON</Text>
-                    )}
-                  </View>
-                )}
-
-                <Text style={styles.itemBody}>{item.body}</Text>
-
-                {item.isCallAction && (
-                  <TouchableOpacity
-                    style={styles.inlineCallButton}
-                    onPress={() => handleCallParent(item.data?.parent_phone)}
-                  >
-                    <Text style={styles.inlineCallButtonText}>📞 Call {item.data?.parent_name || 'Parent'}</Text>
-                  </TouchableOpacity>
-                )}
+        ) : (
+          <WebView
+            ref={webViewRef}
+            source={{ uri: webAppUrl }}
+            injectedJavaScript={injectedBridgeScript}
+            onMessage={handleWebViewMessage}
+            onError={(e) => setWebViewError(e.nativeEvent.description)}
+            onHttpError={(e) => {
+              if (e.nativeEvent.statusCode >= 500) {
+                setWebViewError(`HTTP Error: ${e.nativeEvent.statusCode}`);
+              }
+            }}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1C355E" />
+                <Text style={styles.loadingText}>Loading CareCircle...</Text>
               </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+            )}
+            style={styles.webView}
+            allowsInlineMediaPlayback={true}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+          />
+        )}
+      </View>
 
-      {/* Full-Screen Urgent Alarm Modal */}
+      {/* Full-Screen Urgent Alarm Modal (With Vibration Loop & Ringing Alert) */}
       <Modal
         visible={Boolean(activeAlarmTask)}
         animationType="slide"
@@ -744,28 +418,23 @@ export default function App() {
                 ? `Call ${activeAlarmTask?.parentName || 'Parent'} Now!`
                 : (activeAlarmTask?.taskTitle || activeAlarmTask?.title)}
             </Text>
-            
+
             <View style={styles.alarmCategoryBadge}>
               <Text style={styles.alarmCategoryText}>
-                {activeAlarmTask?.isCallAction ? 'Care Escalation (45m Overdue)' : `Category: ${activeAlarmTask?.category || 'Medicine'}`}
+                {activeAlarmTask?.isCallAction ? '45m Overdue Escalation' : `Category: ${activeAlarmTask?.category || 'Care Task'}`}
               </Text>
             </View>
 
             <Text style={styles.alarmDescription}>
               {activeAlarmTask?.body || (activeAlarmTask?.isCallAction
-                ? `${activeAlarmTask?.parentName || 'Parent'} has not completed ${activeAlarmTask?.taskTitle || 'care task'} after 45 minutes! Call them directly now.`
+                ? `${activeAlarmTask?.parentName || 'Parent'} has not completed ${activeAlarmTask?.taskTitle || 'their care task'} after 45 minutes! Call them directly now.`
                 : 'Phone is ringing like an alarm until acknowledged. Please complete your care task now!')}
             </Text>
 
             {activeAlarmTask?.isCallAction ? (
               <TouchableOpacity
                 style={[styles.alarmCompleteButton, { backgroundColor: '#10B981' }]}
-                onPress={() => {
-                  Vibration.cancel();
-                  const phone = activeAlarmTask?.parentPhone;
-                  setActiveAlarmTask(null);
-                  handleCallParent(phone);
-                }}
+                onPress={() => handleCallParent(activeAlarmTask?.parentPhone)}
               >
                 <Text style={styles.alarmCompleteButtonText}>
                   📞 Call {activeAlarmTask?.parentName || 'Parent'} Directly Now
@@ -796,6 +465,97 @@ export default function App() {
           </View>
         </View>
       </Modal>
+
+      {/* Server IP Settings Modal */}
+      <Modal
+        visible={showConfigModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowConfigModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.configModalCard}>
+            <Text style={styles.configModalTitle}>⚙️ Server Connection</Text>
+            <Text style={styles.configModalSub}>
+              Enter your Mac's Wi-Fi IP address so your phone loads the live platform and receives real alarms.
+            </Text>
+
+            <Text style={styles.inputLabel}>Mac Wi-Fi IP Address:</Text>
+            <TextInput
+              style={styles.textInput}
+              value={customHostInput}
+              onChangeText={setCustomHostInput}
+              placeholder="e.g. 172.16.36.36"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.configButtonRow}>
+              <TouchableOpacity
+                style={styles.configCancelBtn}
+                onPress={() => setShowConfigModal(false)}
+              >
+                <Text style={styles.configCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.configSaveBtn}
+                onPress={() => {
+                  const cleaned = customHostInput.trim();
+                  if (cleaned) {
+                    setServerHost(cleaned);
+                    setWebViewError(null);
+                    setShowConfigModal(false);
+                    // Re-register push token with new backend URL
+                    if (expoPushToken) {
+                      registerWithBackend(expoPushToken, linkedProfile);
+                    }
+                  }
+                }}
+              >
+                <Text style={styles.configSaveBtnText}>Save & Connect</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Notifications & Alarms Feed Modal */}
+      <Modal
+        visible={showHistoryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.configModalCard, { maxHeight: '80%' }]}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.configModalTitle}>🔔 Alarms & Alerts Stream</Text>
+              <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.tokenDisplay}>
+              Push Token: {expoPushToken ? `${expoPushToken.slice(0, 28)}...` : 'Registering...'}
+            </Text>
+
+            <ScrollView style={{ marginTop: 12 }}>
+              {notificationHistory.length === 0 ? (
+                <Text style={styles.emptyFeedText}>No alarms or notifications received yet.</Text>
+              ) : (
+                notificationHistory.map((item) => (
+                  <View key={item.id} style={styles.historyItem}>
+                    <Text style={styles.historyItemTitle}>{item.title}</Text>
+                    <Text style={styles.historyItemBody}>{item.body}</Text>
+                    <Text style={styles.historyItemTime}>{item.time}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -805,439 +565,354 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1C355E',
   },
-  container: {
-    backgroundColor: '#F8F9FA',
-    padding: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    backgroundColor: '#1C355E',
-    marginHorizontal: -16,
-    marginTop: -16,
-    padding: 24,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    marginBottom: 16,
-  },
-  headerSubtitle: {
-    color: '#93C5FD',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginBottom: 4,
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  badgeRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'space-between',
+    backgroundColor: '#1C355E',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2B4A78',
+  },
+  statusGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    marginRight: 8,
   },
-  badgeText: {
+  statusLabel: {
     color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748B',
-    letterSpacing: 0.8,
-    marginBottom: 6,
+    letterSpacing: 0.2,
   },
-  statusDescription: {
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  subtext: {
-    fontSize: 13,
-    color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  tokenBox: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  tokenLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  tokenText: {
-    fontSize: 12,
-    color: '#0F172A',
-    fontFamily: 'Courier',
-    lineHeight: 16,
-  },
-  urgentAlarmButton: {
-    backgroundColor: '#DC2626',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  urgentAlarmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  callParentTestButton: {
-    backgroundColor: '#EA580C',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  callParentTestButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  primaryButton: {
-    backgroundColor: '#1C355E',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  timelineButton: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  timelineButtonText: {
-    color: '#374151',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  outlineButton: {
-    borderWidth: 1.5,
-    borderColor: '#1C355E',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  outlineButtonText: {
-    color: '#1C355E',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  feedHeader: {
+  topActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 8,
   },
-  countBadge: {
-    backgroundColor: '#E2E8F0',
-    color: '#334155',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  emptyState: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  emptySubtext: {
-    color: '#94A3B8',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  notificationItem: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1C355E',
-  },
-  notificationItemUrgent: {
-    borderLeftColor: '#DC2626',
-    backgroundColor: '#FEF2F2',
-  },
-  notificationItemCall: {
-    borderLeftColor: '#EA580C',
-    backgroundColor: '#FFF7ED',
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  itemTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
-    marginRight: 6,
-  },
-  itemTime: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  itemBody: {
-    fontSize: 12,
-    color: '#475569',
-    lineHeight: 16,
-  },
-  stageTagRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginVertical: 4,
-  },
-  stageTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1C355E',
-    backgroundColor: '#E0E7FF',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  alarmTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#DC2626',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  inlineCallButton: {
-    backgroundColor: '#DC2626',
+  iconButton: {
+    padding: 6,
     borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginTop: 8,
-    alignSelf: 'flex-start',
+    backgroundColor: '#26426E',
+    position: 'relative',
   },
-  inlineCallButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  errorBox: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#991B1B',
-    lineHeight: 16,
-    marginBottom: 10,
-  },
-  settingsButton: {
-    backgroundColor: '#DC2626',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  settingsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  callEscalationBanner: {
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1.5,
-    borderColor: '#FDBA74',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#EA580C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-  },
-  callBannerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  callBannerTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#9A3412',
-    flex: 1,
-  },
-  callBannerDismiss: {
+  iconButtonText: {
     fontSize: 16,
-    color: '#9A3412',
-    padding: 4,
   },
-  callBannerBody: {
-    fontSize: 13,
-    color: '#C2410C',
+  badgeCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeCountText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  errorEmoji: {
+    fontSize: 52,
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorBody: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#1C355E',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
     marginBottom: 12,
-    lineHeight: 18,
-  },
-  callActionButton: {
-    backgroundColor: '#EA580C',
-    borderRadius: 10,
-    paddingVertical: 12,
+    width: '100%',
     alignItems: 'center',
   },
-  callActionButtonText: {
-    color: '#FFFFFF',
+  retryButtonText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  changeIpButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    width: '100%',
+    alignItems: 'center',
+  },
+  changeIpButtonText: {
+    color: '#475569',
+    fontWeight: '600',
     fontSize: 14,
-    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   alarmModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 26,
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 15,
   },
   alarmIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   alarmEmoji: {
-    fontSize: 36,
+    fontSize: 38,
   },
   alarmPulsingBadge: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#DC2626',
     letterSpacing: 1,
-    marginBottom: 8,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   alarmTaskTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   alarmCategoryBadge: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    marginBottom: 12,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 14,
   },
   alarmCategoryText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
+    fontWeight: '700',
+    color: '#2563EB',
   },
   alarmDescription: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 14,
+    color: '#475569',
     textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
+    lineHeight: 20,
+    marginBottom: 22,
   },
   alarmCompleteButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 16,
     width: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 12,
-    paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 10,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   alarmCompleteButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
   },
   alarmSnoozeButton: {
-    width: '100%',
     backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    width: '100%',
     alignItems: 'center',
     marginBottom: 8,
   },
   alarmSnoozeButtonText: {
     color: '#334155',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   alarmDismissButton: {
-    paddingVertical: 8,
+    paddingVertical: 10,
+    width: '100%',
+    alignItems: 'center',
   },
   alarmDismissButtonText: {
     color: '#94A3B8',
     fontSize: 13,
     fontWeight: '600',
   },
+  configModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 380,
+  },
+  configModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  configModalSub: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#0F172A',
+    marginBottom: 20,
+    backgroundColor: '#F8FAFC',
+  },
+  configButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  configCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  configCancelBtnText: {
+    color: '#475569',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  configSaveBtn: {
+    flex: 1.5,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#1C355E',
+    alignItems: 'center',
+  },
+  configSaveBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  closeBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#64748B',
+    padding: 4,
+  },
+  tokenDisplay: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    backgroundColor: '#F8FAFC',
+    padding: 6,
+    borderRadius: 8,
+  },
+  emptyFeedText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+  historyItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingVertical: 10,
+  },
+  historyItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  historyItemBody: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  historyItemTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
 });
-

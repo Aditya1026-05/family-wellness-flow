@@ -21,6 +21,9 @@ class InviteOut(BaseModel):
 class InviteAccept(BaseModel):
     code: str  # Can be the token, QR URL, or 6-digit short code
     device_name: Optional[str] = None
+    device_token: Optional[str] = None
+    platform: Optional[str] = "ios"
+
 
 class InviteAcceptOut(BaseModel):
     access_token: str

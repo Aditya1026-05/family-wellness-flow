@@ -8,6 +8,7 @@ from app.models.invite import FamilyInvite
 from app.models.parent import ParentProfile
 from app.models.family import Family, FamilyMember
 from app.models.user import User
+from app.models.device_token import DeviceToken
 from app.utils.tokens import generate_secure_invite_token, generate_short_code
 from app.core.security import create_access_token
 from app.services.notification_service import notification_service
@@ -63,7 +64,14 @@ class InviteService:
             ).order_by(FamilyInvite.created_at.desc())
         )
 
-    def accept_invite(self, db: Session, raw_code: str, device_name: Optional[str] = None) -> InviteAcceptOut:
+    def accept_invite(
+        self,
+        db: Session,
+        raw_code: str,
+        device_name: Optional[str] = None,
+        device_token: Optional[str] = None,
+        platform: Optional[str] = "ios",
+    ) -> InviteAcceptOut:
         # Extract code from URL or scheme if passed
         cleaned = raw_code.strip()
         if "://" in cleaned:
@@ -135,6 +143,30 @@ class InviteService:
         invite.is_used = True
         invite.used_at = now
         db.commit()
+
+        # If device_token was passed (e.g. mobile app accepting invite), link hardware device token
+        if device_token:
+            token_clean = device_token.strip()
+            dev = db.scalar(select(DeviceToken).where(DeviceToken.token == token_clean))
+            if dev:
+                dev.parent_profile_id = parent.id
+                dev.user_id = parent_user.id
+                dev.is_active = True
+                dev.last_seen_at = now
+            else:
+                dev = DeviceToken(
+                    parent_profile_id=parent.id,
+                    user_id=parent_user.id,
+                    token=token_clean,
+                    provider="expo",
+                    platform=platform or "ios",
+                    device_name=device_name,
+                    is_active=True,
+                    created_at=now,
+                    last_seen_at=now,
+                )
+                db.add(dev)
+            db.commit()
 
         # Send alert/notification to child owner
         notification_service.create_notification(

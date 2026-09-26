@@ -40,6 +40,17 @@ export function getCurrentParentProfile(): any | null {
 export function setCurrentParentProfile(profile: any): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('carecircle_parent_profile', JSON.stringify(profile));
+    try {
+      (window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({
+          type: 'DEVICE_LINK',
+          role: 'parent',
+          parent_profile_id: profile?.parent_profile_id || profile?.id,
+          family_id: profile?.family_id,
+          parent_name: profile?.parent_name || profile?.name,
+        })
+      );
+    } catch {}
   }
 }
 
@@ -52,6 +63,17 @@ export function getCurrentUser(): any | null {
 export function setCurrentUser(user: any): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('carecircle_user', JSON.stringify(user));
+    try {
+      (window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({
+          type: 'DEVICE_LINK',
+          role: 'child',
+          user_id: user?.id,
+          family_id: user?.family_id,
+          user_name: user?.full_name || user?.email,
+        })
+      );
+    } catch {}
   }
 }
 
@@ -158,9 +180,15 @@ export const api = {
         method: 'POST',
       }),
     accept: async (code: string) => {
+      const nativePushToken = typeof window !== 'undefined' ? (window as any).CareCircleNative?.pushToken : undefined;
+      const nativePlatform = typeof window !== 'undefined' ? (window as any).CareCircleNative?.platform || 'web' : 'web';
       const res = await request<{ access_token: string; parent_profile_id: string; parent_name: string; relationship: string; family_id: string }>('/invites/accept', {
         method: 'POST',
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code,
+          device_token: nativePushToken,
+          platform: nativePlatform,
+        }),
       });
       setParentToken(res.access_token);
       setCurrentParentProfile(res);
