@@ -157,7 +157,7 @@ export function DashboardPage() {
         <StatCard icon={ClipboardList} label="Active tasks" value={tasks.filter(t => t.status === 'pending').length} note="Still to do today" tone="amber"/>
         <StatCard icon={Bell} label="Missed tasks" value={missed} note="Needs attention" tone="red"/>
       </div>
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
         <div className="space-y-9">
           <section>
             <SectionTitle title="Your people" link={parents.length ? "View all" : undefined} to={parents.length ? "/parents" : undefined}/>

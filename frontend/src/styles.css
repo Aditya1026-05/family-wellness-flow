@@ -80,14 +80,14 @@
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Dark navy sidebar */
-  --sidebar: 222 47% 13%;
-  --sidebar-foreground: 215 20% 76%;
-  --sidebar-border: 222 32% 23%;
+  /* Sophisticated neutral charcoal obsidian sidebar (no harsh blue) */
+  --sidebar: 240 5.9% 10%;
+  --sidebar-foreground: 240 5% 72%;
+  --sidebar-border: 240 5.9% 15.5%;
   --sidebar-primary: 217 91% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 37% 20%;
-  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent: 240 5.9% 16.5%;
+  --sidebar-accent-foreground: 0 0% 99%;
   --sidebar-ring: 217 91% 60%;
 
   /* Health & category statuses */
@@ -129,12 +129,12 @@
   --destructive: 0 68% 61%;
   --destructive-foreground: 222 47% 11%;
 
-  --sidebar: 222 36% 8%;
-  --sidebar-foreground: 215 20% 76%;
-  --sidebar-border: 217 23% 20%;
+  --sidebar: 240 5.9% 8.5%;
+  --sidebar-foreground: 240 5% 75%;
+  --sidebar-border: 240 5.9% 14.5%;
   --sidebar-primary: 213 94% 68%;
   --sidebar-primary-foreground: 222 47% 11%;
-  --sidebar-accent: 217 27% 16%;
+  --sidebar-accent: 240 5.9% 15%;
   --sidebar-accent-foreground: 0 0% 100%;
   --sidebar-ring: 213 94% 68%;
 

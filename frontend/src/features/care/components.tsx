@@ -114,15 +114,15 @@ export function ChildShell({
 
   return (
     <div className="app-grain min-h-[100dvh] bg-background lg:flex">
-      {/* Sleek Dark Navy Sidebar matching CareCircle aesthetic */}
+      {/* Sleek Dark Graphite/Charcoal Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col bg-sidebar px-4 py-6 text-sidebar-foreground lg:flex lg:sticky lg:top-0 lg:h-dvh border-r border-sidebar-border">
         <div className="px-2">
           <Brand light />
         </div>
-        <div className="mt-10 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-sidebar-foreground/55">
+        <div className="mt-10 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-sidebar-foreground/50">
           Family care
         </div>
-        <nav className="mt-3 space-y-1" aria-label="Main navigation">
+        <nav className="mt-3 space-y-1.5" aria-label="Main navigation">
           {navItems.map(item => {
             const isActive = path === item.to || (item.to !== '/dashboard' && path.startsWith(`${item.to}/`));
             return (
@@ -130,13 +130,13 @@ export function ChildShell({
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition',
+                  'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-white'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-white'
                 )}
               >
-                <item.icon className="size-4.5" />
+                <item.icon className={cn("size-4.5", isActive ? "text-white" : "text-sidebar-foreground/75")} />
                 <span>{item.label}</span>
                 {item.label === 'Alerts' && alerts.length > 0 && (
                   <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-900">
@@ -148,16 +148,16 @@ export function ChildShell({
           })}
         </nav>
 
-        <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent/60 p-4">
-          <ShieldCheck className="size-4.5 text-blue-300" />
-          <p className="mt-3 text-sm font-semibold text-white">A calmer care routine</p>
+        <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-4">
+          <ShieldCheck className="size-4.5 text-emerald-400" />
+          <p className="mt-2.5 text-sm font-semibold text-white">A calmer care routine</p>
           <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70">
             Small updates keep everyone close, even from a distance.
           </p>
         </div>
 
-        <div className="mt-5 flex items-center gap-3 border-t border-sidebar-border pt-5 px-1">
-          <div className="grid size-9 place-items-center rounded-full bg-blue-500/20 text-blue-300 font-bold text-xs">
+        <div className="mt-4 flex items-center gap-3 border-t border-sidebar-border pt-4 px-1">
+          <div className="grid size-9 place-items-center rounded-full bg-white/10 text-white font-bold text-xs">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
@@ -587,51 +587,64 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
   const parentPhone = alert.parent_phone || alert.parentPhone;
 
   return (
-    <div className="card-shadow flex flex-col sm:flex-row gap-4 rounded-2xl border border-card-border bg-card p-5">
-      <div className="flex gap-4 min-w-0 flex-1">
+    <div className="card-shadow flex flex-col rounded-2xl border border-card-border bg-card p-4 sm:p-5 transition hover:border-border">
+      {/* Top Header Row: Icon + Badges + Title */}
+      <div className="flex items-start gap-3.5">
         <div
           className={cn(
-            'grid size-11 shrink-0 place-items-center rounded-2xl',
+            'grid size-10 shrink-0 place-items-center rounded-xl',
             isUrgent
-              ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300'
+              ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
               : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
           )}
         >
-          {isCallAction ? <Phone className="size-5 animate-pulse" /> : <Bell className="size-5" />}
+          {isCallAction ? <Phone className="size-4.5 animate-pulse" /> : <Bell className="size-4.5" />}
         </div>
+
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-foreground">{alert.title}</h3>
+          <div className="flex items-center justify-between gap-2">
             <span
               className={cn(
-                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide uppercase',
                 isUrgent
-                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
                   : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
               )}
             >
               {alert.priority}
             </span>
-            {isCallAction && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-600 text-white px-2 py-0.5 text-[10px] font-bold">
-                ⚠️ 45m Overdue · Call Required
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground shrink-0">{alert.time}</span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{alert.detail}</p>
-          <p className="mt-2 text-xs text-muted-foreground">{alert.time}</p>
+
+          <h3 className="mt-1.5 font-bold text-sm sm:text-base text-foreground leading-snug break-words">
+            {alert.title}
+          </h3>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 self-end sm:self-start shrink-0">
+      {/* Overdue Banner if call required */}
+      {isCallAction && (
+        <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-200/60 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300">
+          <span className="animate-pulse">⚠️</span>
+          <span>45m Overdue · Immediate Call Required</span>
+        </div>
+      )}
+
+      {/* Description text - takes full width naturally */}
+      <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-muted-foreground break-words">
+        {alert.detail}
+      </p>
+
+      {/* Bottom Action Footer */}
+      <div className="mt-4 pt-3.5 border-t border-border/60 flex items-center gap-2.5">
         {isCallAction && (
           <Button
             asChild
             size="sm"
-            className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm"
+            className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 shadow-xs"
           >
-            <a href={parentPhone ? `tel:${parentPhone}` : "tel:"}>
-              <Phone className="size-3.5 mr-1" /> Call Parent
+            <a href={parentPhone ? `tel:${parentPhone}` : "tel:"} className="flex items-center justify-center gap-1.5">
+              <Phone className="size-3.5" /> Call Parent
             </a>
           </Button>
         )}
@@ -642,9 +655,12 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
             onClick={onDismiss}
             aria-label={`Dismiss ${alert.title}`}
             title="Dismiss alert"
-            className="rounded-xl text-xs font-semibold"
+            className={cn(
+              "rounded-xl text-xs font-semibold h-9",
+              isCallAction ? "flex-1" : "w-full"
+            )}
           >
-            <Check className="size-3.5 mr-1" /> Resolve
+            <Check className="size-3.5 mr-1 text-muted-foreground" /> Resolve
           </Button>
         )}
       </div>
