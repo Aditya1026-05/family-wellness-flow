@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { type Parent, type CareTask, type CareAlert } from './data';
-import { api, getAuthToken } from '@/lib/api';
+import { api, getAuthToken, getParentToken } from '@/lib/api';
 
 type CareState = {
   parents: Parent[];
@@ -39,7 +39,7 @@ export const useCareStore = create<CareState>((set, get) => ({
   },
 
   init: async () => {
-    const token = getAuthToken();
+    const token = getAuthToken() || getParentToken();
     if (!token) {
       set({ parents: [], tasks: [], alerts: [], isLoaded: true });
       return;

@@ -23,27 +23,26 @@ def register_device_token(
     user_id: uuid.UUID | None = None
     parent_profile_id: uuid.UUID | None = None
 
-    if identity.get("sub"):
-        try:
-            user_id = uuid.UUID(identity["sub"])
-        except ValueError:
-            pass
-
+    # Check caller identity claims first
     if identity.get("parent_profile_id"):
         try:
             parent_profile_id = uuid.UUID(identity["parent_profile_id"])
         except ValueError:
             pass
 
-    # If anonymous or explicit payload passed, resolve user_id / parent_profile_id
+    if identity.get("sub") and not parent_profile_id:
+        try:
+            user_id = uuid.UUID(identity["sub"])
+        except ValueError:
+            pass
+
+    # Check explicit payload properties
     if not parent_profile_id and (payload.parent_profile_id or payload.parent_id):
         p_str = str(payload.parent_profile_id or payload.parent_id)
         try:
             parent_profile_id = uuid.UUID(p_str)
         except (ValueError, TypeError):
-            first_p = db.scalar(select(ParentProfile))
-            if first_p:
-                parent_profile_id = first_p.id
+            pass
 
     if not user_id and payload.user_id:
         try:
@@ -51,22 +50,17 @@ def register_device_token(
         except (ValueError, TypeError):
             pass
 
-    # For mobile companion device, associate with default parent & family owner if not yet bound
-    if not parent_profile_id and not user_id:
-        first_parent = db.scalar(select(ParentProfile))
-        first_user = db.scalar(select(User).where(User.role == "child"))
-        if first_parent:
-            parent_profile_id = first_parent.id
-        if first_user:
-            user_id = first_user.id
-    elif not user_id:
-        first_user = db.scalar(select(User).where(User.role == "child"))
-        if first_user:
-            user_id = first_user.id
-    elif not parent_profile_id:
-        first_parent = db.scalar(select(ParentProfile))
-        if first_parent:
-            parent_profile_id = first_parent.id
+    # If linked to a parent profile, associate with the parent profile and their user account
+    if parent_profile_id:
+        parent = db.get(ParentProfile, parent_profile_id)
+        if parent:
+            parent_profile_id = parent.id
+            user_id = parent.user_id
+    elif user_id:
+        user = db.get(User, user_id)
+        if user:
+            user_id = user.id
+            parent_profile_id = None
 
     now = datetime.now(timezone.utc)
     token_str = payload.token.strip()
@@ -74,8 +68,12 @@ def register_device_token(
     # Check if token is already registered
     device = db.scalar(select(DeviceToken).where(DeviceToken.token == token_str))
     if device:
-        device.user_id = user_id or device.user_id
-        device.parent_profile_id = parent_profile_id or device.parent_profile_id
+        if parent_profile_id:
+            device.parent_profile_id = parent_profile_id
+            device.user_id = user_id
+        elif user_id:
+            device.user_id = user_id
+            device.parent_profile_id = None
         device.provider = payload.provider or device.provider
         device.device_name = payload.device_name or device.device_name
         device.platform = payload.platform or device.platform

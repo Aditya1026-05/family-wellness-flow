@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -226,10 +226,33 @@ export function ParentHomePage() {
 
   const parentId = profile.parent_profile_id;
   const parentName = profile.relationship || profile.parent_name || 'friend';
-  const tasks = useCareStore(s => s.tasks);
-  const complete = useCareStore(s => s.completeTask);
-  const snooze = useCareStore(s => s.snoozeTask);
-  const snoozed = useCareStore(s => s.snoozedTaskId);
+  const queryClient = useQueryClient();
+  const [snoozedId, setSnoozedId] = useState<string | null>(null);
+
+  const { data: todayTasks = [] } = useQuery({
+    queryKey: ['today-instances', parentId],
+    queryFn: () => api.tasks.getTodaySchedule(parentId),
+    enabled: !!parentId,
+    refetchInterval: 10000,
+  });
+
+  const complete = async (taskOrInstId: string) => {
+    try {
+      await api.tasks.complete(taskOrInstId, { parentIds: [parentId] });
+    } catch {}
+    queryClient.invalidateQueries({ queryKey: ['today-instances', parentId] });
+    queryClient.invalidateQueries({ queryKey: ['adherence', parentId] });
+    useCareStore.getState().init();
+  };
+
+  const snooze = async (taskOrInstId: string) => {
+    setSnoozedId(taskOrInstId);
+    try {
+      await api.tasks.snooze(taskOrInstId, 10);
+    } catch {}
+    queryClient.invalidateQueries({ queryKey: ['today-instances', parentId] });
+    queryClient.invalidateQueries({ queryKey: ['adherence', parentId] });
+  };
 
   const now = new Date();
   const currentHour = now.getHours();
@@ -248,14 +271,8 @@ export function ParentHomePage() {
     GreetingIcon = Coffee;
   }
 
-  const myTasks = tasks.filter(t => t.parentId === parentId || t.parentIds?.includes(parentId));
-
-  const pendingItems = myTasks
-    .filter(t => {
-      const pStat = (t.parentStatuses || t.parent_statuses || []).find(s => s.parentId === parentId || s.parent_id === parentId);
-      const status = pStat?.status || t.status;
-      return status === 'pending';
-    })
+  const pendingItems = todayTasks
+    .filter(t => t.status === 'pending' || t.status === 'snoozed')
     .map(t => {
       const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
       const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
@@ -273,14 +290,14 @@ export function ParentHomePage() {
     return currentMinutes > item.endM + 30;
   });
 
-  // Pick active task: currently due first, otherwise overdue task
-  const activeItem = currentSlotItem || overdueItem;
+  // Pick active task: currently due first, otherwise overdue task, otherwise first pending task
+  const activeItem = currentSlotItem || overdueItem || (pendingItems.length > 0 ? pendingItems[0] : null);
   const active = activeItem?.task;
-  const isOverdue = !!overdueItem && !currentSlotItem;
+  const isOverdue = !!overdueItem && !currentSlotItem && activeItem === overdueItem;
   const nextUpcomingItem = !activeItem && pendingItems.length > 0 ? pendingItems[0] : null;
 
   const isEnded = active ? (active.is_ended || active.isEnded) : false;
-  const timeLabel = active ? (active.endTime ? `${active.time} – ${active.endTime}` : active.time) : '';
+  const timeLabel = active ? (active.endTime || active.scheduled_end_time ? `${active.time || active.scheduled_time} – ${active.endTime || active.scheduled_end_time}` : (active.time || active.scheduled_time)) : '';
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 
   return (
@@ -304,7 +321,7 @@ export function ParentHomePage() {
             {isOverdue ? 'Needs attention' : 'Your next step'}
           </p>
           <h1 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl text-foreground leading-tight">
-            {active.name}
+            {active.name || active.title}
           </h1>
           <p className="mt-3 text-base sm:text-lg text-muted-foreground">
             {timeLabel}
@@ -316,7 +333,7 @@ export function ParentHomePage() {
             </div>
           )}
 
-          {snoozed === active.id && (
+          {snoozedId === active.id && (
             <div role="status" className="mx-auto mt-5 max-w-sm rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
               Okay, we'll remind you again in 10 minutes.
             </div>
@@ -333,7 +350,7 @@ export function ParentHomePage() {
             <div className="mt-9 grid gap-3 sm:grid-cols-2">
               <Button
                 size="lg"
-                onClick={() => complete(active.id, { parentIds: [parentId] })}
+                onClick={() => complete(active.id)}
                 className="min-h-14 rounded-2xl bg-success text-base font-bold text-white hover:bg-success/90 shadow-md shadow-green-600/20"
               >
                 <CheckCircle2 className="size-5 mr-1" /> I've done this
@@ -376,15 +393,15 @@ export function ParentHomePage() {
                 Next Upcoming
               </span>
               <span className="text-xs font-semibold text-primary">
-                {nextUpcomingItem.task.time}
+                {nextUpcomingItem.task.time || nextUpcomingItem.task.scheduled_time}
               </span>
             </div>
             <p className="mt-1 text-base font-bold text-foreground">
-              {nextUpcomingItem.task.name}
+              {nextUpcomingItem.task.name || nextUpcomingItem.task.title}
             </p>
-            {nextUpcomingItem.task.detail && (
+            {(nextUpcomingItem.task.detail || nextUpcomingItem.task.notes) && (
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {nextUpcomingItem.task.detail}
+                {nextUpcomingItem.task.detail || nextUpcomingItem.task.notes}
               </p>
             )}
           </div>
@@ -392,7 +409,7 @@ export function ParentHomePage() {
           <div className="mt-6 flex flex-col gap-2.5 sm:flex-row justify-center max-w-sm mx-auto">
             <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-xs font-bold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
               <Clock3 className="size-4 shrink-0 text-rose-600" />
-              <span>Available in time slot ({nextUpcomingItem.task.time})</span>
+              <span>Available in time slot ({nextUpcomingItem.task.time || nextUpcomingItem.task.scheduled_time})</span>
             </div>
             <Button
               asChild
@@ -446,7 +463,14 @@ export function ParentTodayPage() {
 
   const parentId = profile.parent_profile_id;
   const parentName = profile.relationship || profile.parent_name || 'Your';
-  const tasks = useCareStore(s => s.tasks).filter(t => t.parentId === parentId || t.parentIds?.includes(parentId));
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['today-instances', parentId],
+    queryFn: () => api.tasks.getTodaySchedule(parentId),
+    enabled: !!parentId,
+    refetchInterval: 10000,
+  });
+
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 
   return (
@@ -459,20 +483,17 @@ export function ParentTodayPage() {
 
       <div className="mt-8 space-y-3">
         {tasks.length ? tasks.map(t => {
-          const pStat = (t.parentStatuses || t.parent_statuses || []).find(s => s.parentId === parentId || s.parent_id === parentId);
-          const parentStatus = pStat?.status || t.status;
+          const parentStatus = t.status;
           const isEnded = (t.is_ended || t.isEnded) && parentStatus !== 'completed';
-          const timeLabel = t.endTime ? `${t.time} – ${t.endTime}` : t.time;
-          const completedTimeStr = pStat?.completedTime || pStat?.completed_time || t.completedTime || t.completed_time
-            ? (pStat?.completedTime || pStat?.completed_time || t.completedTime || t.completed_time)
-            : ((pStat?.completedAt || t.completedAt || t.completed_at) ? new Date(pStat?.completedAt || t.completedAt || t.completed_at!).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null);
+          const timeLabel = (t.endTime || t.scheduled_end_time)
+            ? `${t.time || t.scheduled_time} – ${t.endTime || t.scheduled_end_time}`
+            : (t.time || t.scheduled_time);
+          const completedTimeStr = t.completedTime || t.completed_time;
+          const isTaskCompleted = parentStatus === 'completed';
 
           const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
-          const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
           const currentM = new Date().getHours() * 60 + new Date().getMinutes();
-          const isInSlot = currentM >= startM - 30 && currentM <= endM + 30;
           const isUpcoming = currentM < startM - 30;
-          const isTaskCompleted = parentStatus === 'completed';
 
           return (
             <div key={t.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 card-shadow">
@@ -494,7 +515,7 @@ export function ParentTodayPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className={cn('text-base font-bold', isTaskCompleted && 'line-through text-muted-foreground')}>
-                    {t.name}
+                    {t.name || t.title}
                   </h2>
                   {isEnded && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 dark:bg-red-950 dark:text-red-200">Ended</span>}
                 </div>
@@ -514,7 +535,7 @@ export function ParentTodayPage() {
               ) : parentStatus === 'missed' ? (
                 <StatusBadge status="missed" />
               ) : isUpcoming ? (
-                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">Opens at {t.time}</span>
+                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">Opens at {t.time || t.scheduled_time}</span>
               ) : (
                 <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Due now</span>
               )}
