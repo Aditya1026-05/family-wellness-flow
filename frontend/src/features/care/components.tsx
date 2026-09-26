@@ -1,5 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
+  AlertTriangle,
   Bell,
   CalendarDays,
   Check,
@@ -405,7 +406,7 @@ export function TaskCard({
             )}
             {(task.ring_alarm || task.ringAlarm) && (
               <span className="inline-flex items-center gap-1 rounded-md bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 px-1.5 py-0.5 text-[10px] font-bold">
-                ⏰ Alarm
+                <Bell className="size-3" /> Alarm
               </span>
             )}
             {!hasUncompleted && completedTimeStr && (
@@ -698,7 +699,7 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
       {/* Overdue Banner if call required */}
       {isCallAction && (
         <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-200/60 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300">
-          <span className="animate-pulse">⚠️</span>
+          <AlertTriangle className="size-3.5 text-rose-600 shrink-0" />
           <span>45m Overdue · Immediate Call Required</span>
         </div>
       )}

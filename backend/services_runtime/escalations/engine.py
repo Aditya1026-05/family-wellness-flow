@@ -80,7 +80,7 @@ async def evaluate_and_escalate_overdue_tasks(
         inst.last_reminded_at = now
 
         priority = "High" if (task.category in ("Medicine", "Meal") or task.ring_alarm) else "Medium"
-        title = f"⚠️ Call {parent.name}: {task.title} missed"
+        title = f"Call {parent.name}: {task.title} missed"
         detail = f"{parent.name} has not completed {task.title} after 45 minutes (scheduled {task.scheduled_time}). Please call them directly to check in!"
 
         if not existing_esc:

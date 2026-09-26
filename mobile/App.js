@@ -136,7 +136,7 @@ export default function App() {
       // Pop native full-screen alarm modal with vibration loop
       if (isUrgent || isCallAction) {
         setActiveAlarmTask({
-          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
+          title: title || (isCallAction ? `Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
           body: body || '',
           taskId: data?.task_id || data?.task_instance_id || '1',
           taskTitle: data?.task_title || title || 'Care Task',
@@ -156,7 +156,7 @@ export default function App() {
 
       if (isUrgent || isCallAction) {
         setActiveAlarmTask({
-          title: title || (isCallAction ? `🚨 Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
+          title: title || (isCallAction ? `Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
           body: body || '',
           taskId: data?.task_id || data?.task_instance_id || '1',
           taskTitle: data?.task_title || title || 'Care Task',
@@ -387,7 +387,7 @@ export default function App() {
           <View style={[styles.statusDot, { backgroundColor: isRegistered ? '#10B981' : '#F59E0B' }]} />
           <Text style={styles.statusLabel} numberOfLines={1}>
             {linkedProfile
-              ? `👤 ${linkedProfile.parent_name || linkedProfile.user_name || 'Linked'}`
+              ? `${linkedProfile.parent_name || linkedProfile.user_name || 'Linked Profile'}`
               : (isRegistered ? 'CareCircle Native • Alarms Live' : 'Connecting to Server...')}
           </Text>
         </View>
@@ -397,7 +397,7 @@ export default function App() {
             style={styles.iconButton}
             onPress={() => setShowHistoryModal(true)}
           >
-            <Text style={styles.iconButtonText}>🔔</Text>
+            <Text style={styles.iconButtonText}>Alerts</Text>
             {notificationHistory.length > 0 && (
               <View style={styles.badgeCount}>
                 <Text style={styles.badgeCountText}>{notificationHistory.length}</Text>
@@ -412,7 +412,7 @@ export default function App() {
               setShowConfigModal(true);
             }}
           >
-            <Text style={styles.iconButtonText}>⚙️</Text>
+            <Text style={styles.iconButtonText}>Settings</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -421,7 +421,6 @@ export default function App() {
       <View style={styles.webViewContainer}>
         {webViewError ? (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorEmoji}>🌐</Text>
             <Text style={styles.errorTitle}>Unable to Reach CareCircle Server</Text>
             <Text style={styles.errorBody}>
               Could not connect to {webAppUrl}. Ensure your phone and Mac are connected to the same Wi-Fi network.
@@ -433,13 +432,13 @@ export default function App() {
                 webViewRef.current?.reload();
               }}
             >
-              <Text style={styles.retryButtonText}>🔄 Retry Connection</Text>
+              <Text style={styles.retryButtonText}>Retry Connection</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.changeIpButton}
               onPress={() => setShowConfigModal(true)}
             >
-              <Text style={styles.changeIpButtonText}>⚙️ Change Server IP ({serverHost})</Text>
+              <Text style={styles.changeIpButtonText}>Configure Server IP ({serverHost})</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -495,11 +494,13 @@ export default function App() {
         <View style={styles.modalOverlay}>
           <View style={styles.alarmModalCard}>
             <View style={styles.alarmIconCircle}>
-              <Text style={styles.alarmEmoji}>{activeAlarmTask?.isCallAction ? '🚨' : '⏰'}</Text>
+              <Text style={styles.alarmBadgeText}>
+                {activeAlarmTask?.isCallAction ? 'CALL' : 'ALERT'}
+              </Text>
             </View>
 
             <Text style={styles.alarmPulsingBadge}>
-              {activeAlarmTask?.isCallAction ? '🚨 CALL PARENT ALARM RINGING' : '🚨 URGENT CARE ALARM RINGING'}
+              {activeAlarmTask?.isCallAction ? 'CALL PARENT ALARM' : 'URGENT CARE ALARM'}
             </Text>
             <Text style={styles.alarmTaskTitle}>
               {activeAlarmTask?.isCallAction
@@ -525,7 +526,7 @@ export default function App() {
                 onPress={() => handleCallParent(activeAlarmTask?.parentPhone, activeAlarmTask?.parentName)}
               >
                 <Text style={styles.alarmCompleteButtonText}>
-                  📞 Call {activeAlarmTask?.parentName || 'Parent'} Directly Now
+                  Call {activeAlarmTask?.parentName || 'Parent'} Directly Now
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -533,7 +534,7 @@ export default function App() {
                 style={styles.alarmCompleteButton}
                 onPress={handleCompleteFromAlarm}
               >
-                <Text style={styles.alarmCompleteButtonText}>✅ Mark as Completed Now</Text>
+                <Text style={styles.alarmCompleteButtonText}>Mark as Completed Now</Text>
               </TouchableOpacity>
             )}
 
@@ -541,7 +542,7 @@ export default function App() {
               style={styles.alarmSnoozeButton}
               onPress={handleDismissAlarm}
             >
-              <Text style={styles.alarmSnoozeButtonText}>⏰ Snooze Alarm (10 mins)</Text>
+              <Text style={styles.alarmSnoozeButtonText}>Snooze Alarm (10 mins)</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -563,7 +564,7 @@ export default function App() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.configModalCard}>
-            <Text style={styles.configModalTitle}>⚙️ Server Connection</Text>
+            <Text style={styles.configModalTitle}>Server Connection</Text>
             <Text style={styles.configModalSub}>
               Enter your Mac's Wi-Fi IP address so your phone loads the live platform and receives real alarms.
             </Text>
@@ -618,9 +619,9 @@ export default function App() {
         <View style={styles.modalOverlay}>
           <View style={[styles.configModalCard, { maxHeight: '80%' }]}>
             <View style={styles.historyHeader}>
-              <Text style={styles.configModalTitle}>🔔 Alarms & Alerts Stream</Text>
+              <Text style={styles.configModalTitle}>Alarms & Alerts Stream</Text>
               <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
-                <Text style={styles.closeBtnText}>✕</Text>
+                <Text style={styles.closeBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
 
@@ -687,13 +688,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    padding: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: 8,
     backgroundColor: '#26426E',
     position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconButtonText: {
-    fontSize: 16,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E2E8F0',
   },
   badgeCount: {
     position: 'absolute',
@@ -806,16 +812,21 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   alarmIconCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#FEE2E2',
+    borderWidth: 2,
+    borderColor: '#FECACA',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  alarmEmoji: {
-    fontSize: 38,
+  alarmBadgeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#DC2626',
+    letterSpacing: 1,
   },
   alarmPulsingBadge: {
     fontSize: 12,

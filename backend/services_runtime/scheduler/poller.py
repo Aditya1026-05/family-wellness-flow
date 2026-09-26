@@ -106,7 +106,7 @@ async def poll_and_dispatch_reminders(
                     family_id=task.family_id,
                     task_instance_id=inst.id,
                     parent_profile_id=parent.id,
-                    title=f"❌ {task.title} missed",
+                    title=f"{task.title} missed",
                     detail=f"{parent.name} did not complete {task.title} within the allowed window.",
                     priority="High" if (task.category in ("Medicine", "Meal") or task.ring_alarm) else "Medium",
                     escalation_type="Missed task",
@@ -121,7 +121,7 @@ async def poll_and_dispatch_reminders(
             parent_notif = Notification(
                 family_id=task.family_id,
                 parent_profile_id=parent.id,
-                title=f"❌ Task Ended: {task.title}",
+                title=f"Task Ended: {task.title}",
                 message=f"The time window for {task.title} has ended and it is now recorded as missed.",
                 notification_type="task_missed",
                 is_read=False,
@@ -131,7 +131,7 @@ async def poll_and_dispatch_reminders(
             db.flush()
 
             parent_payload = PushPayload(
-                title=f"❌ Task Ended: {task.title}",
+                title=f"Task Ended: {task.title}",
                 body=f"The time window for {task.title} has ended and it is now recorded as missed.",
                 data={
                     "type": "care_task_missed",
@@ -160,7 +160,7 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"⏰ Alarm: Time for {task.title}!" if is_alarm else f"Time for {task.title}"
+            title = f"Alarm: Time for {task.title}!" if is_alarm else f"Time for {task.title}"
             body = task.detail or task.notes or f"Time to complete {task.title} ({task.category})."
 
             notif = Notification(
@@ -215,7 +215,7 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"⏰ Alarm Reminder: {task.title} is waiting" if is_alarm else f"Reminder: {task.title} is waiting"
+            title = f"Alarm Reminder: {task.title} is waiting" if is_alarm else f"Reminder: {task.title} is waiting"
             body = f"{task.title} was scheduled for {task.scheduled_time}. Please complete it when ready."
 
             notif = Notification(
@@ -270,7 +270,7 @@ async def poll_and_dispatch_reminders(
                 continue
 
             is_alarm = bool(task.ring_alarm)
-            title = f"⏰ Urgent Alarm: {task.title} is 30m overdue!" if is_alarm else f"2nd Reminder: {task.title} is overdue"
+            title = f"Urgent Alarm: {task.title} is 30m overdue!" if is_alarm else f"2nd Reminder: {task.title} is overdue"
             body = f"Important: {task.title} is 30 minutes past due. Please complete this task."
 
             notif = Notification(
@@ -330,11 +330,11 @@ async def poll_and_dispatch_reminders(
 
             is_alarm = bool(task.ring_alarm)
             priority = "High" if (task.category in ("Medicine", "Meal") or is_alarm) else "Medium"
-            esc_title = f"🚨 Call {parent.name} Alarm: {task.title} overdue"
+            esc_title = f"Call {parent.name} Alarm: {task.title} overdue"
             esc_detail = f"{parent.name} has not completed {task.title} after 45 minutes (scheduled for {task.scheduled_time}). Please call them directly!"
 
             # 1. Alarm Parent for task again
-            parent_title = f"⏰ Urgent Alarm: {task.title} is 45m overdue!" if is_alarm else f"⏰ Reminder: {task.title} is 45m overdue!"
+            parent_title = f"Urgent Alarm: {task.title} is 45m overdue!" if is_alarm else f"Reminder: {task.title} is 45m overdue!"
             parent_body = f"Please complete {task.title} now! Your family caregiver has also received an alarm to call you."
 
             parent_notif = Notification(
@@ -402,7 +402,7 @@ async def poll_and_dispatch_reminders(
                     family_id=task.family_id,
                     recipient_user_id=family.owner_id,
                     parent_profile_id=parent.id,
-                    title=f"🚨 Call {parent.name} Alarm: {task.title} overdue!",
+                    title=f"Call {parent.name} Alarm: {task.title} overdue!",
                     message=esc_detail,
                     notification_type="escalation",
                     is_read=False,
@@ -412,7 +412,7 @@ async def poll_and_dispatch_reminders(
                 db.flush()
 
                 child_push = PushPayload(
-                    title=f"🚨 Call {parent.name} Alarm: {task.title} overdue!",
+                    title=f"Call {parent.name} Alarm: {task.title} overdue!",
                     body=f"{parent.name} has not completed {task.title} after 45 minutes. Ringing alarm to call them now!",
                     data={
                         "type": "care_task_escalation",

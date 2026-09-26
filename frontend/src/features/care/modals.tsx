@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AlertTriangle, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
+import { AlertTriangle, Bell, Check, Copy, Download, Loader2, QrCode, RefreshCw, Share2, Users } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { type CareTask, type Parent, type Category } from './data';
 import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/utils';
@@ -258,7 +258,7 @@ export function EditTaskDialog({
           <div className="flex items-center justify-between rounded-xl border border-card-border bg-muted/40 p-3.5 transition-colors">
             <div className="space-y-0.5 pr-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm">⏰</span>
+                <Bell className="size-3.5 text-primary shrink-0" />
                 <Label htmlFor="edit-task-ring-alarm" className="text-xs font-semibold text-foreground cursor-pointer">
                   Ring phone like an alarm (Urgent task)
                 </Label>

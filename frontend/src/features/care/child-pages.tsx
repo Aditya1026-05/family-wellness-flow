@@ -866,7 +866,7 @@ export function CreateTaskPage() {
         <div className="flex items-center justify-between rounded-xl border border-card-border bg-card/80 p-4 transition-colors">
           <div className="space-y-1 pr-4">
             <div className="flex items-center gap-2">
-              <span className="text-base">⏰</span>
+              <Bell className="size-4 text-primary shrink-0" />
               <Label htmlFor="task-ring-alarm" className="font-semibold text-foreground cursor-pointer">
                 Ring phone like an alarm (Urgent task)
               </Label>

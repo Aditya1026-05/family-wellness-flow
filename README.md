@@ -4,7 +4,7 @@ A production-quality family care coordination platform designed for adult childr
 
 ---
 
-## 🌟 Product Overview & Core Workflows
+## Product Overview & Core Workflows
 
 CareCircle connects two distinct user experiences tailored specifically to each generation's needs:
 
@@ -27,7 +27,7 @@ CareCircle connects two distinct user experiences tailored specifically to each 
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Framework**: React 19 + TypeScript
@@ -47,7 +47,7 @@ CareCircle connects two distinct user experiences tailored specifically to each 
 
 ---
 
-## 🏗 Repository Structure
+## Repository Structure
 
 ```
 family-wellness-flow/
@@ -90,7 +90,7 @@ family-wellness-flow/
 
 ---
 
-## 🗄 Database Schema & Relationships
+## Database Schema & Relationships
 
 ```mermaid
 erDiagram
@@ -121,7 +121,7 @@ erDiagram
 
 ---
 
-## 📲 The QR Code & Short Code Invite Flow
+## The QR Code & Short Code Invite Flow
 
 CareCircle offers two convenient options for connecting elderly parents:
 
@@ -142,19 +142,19 @@ Child creates Parent Profile
 
 ---
 
-## 🚀 API Endpoints Overview
+## API Endpoints Overview
 
 All routes are versioned under `/api/v1` and documented automatically via OpenAPI/Swagger:
 
-### 🔐 Authentication (`/api/v1/auth`)
+### Authentication (`/api/v1/auth`)
 - `POST /register` — Register a new child account and auto-provision family circle
 - `POST /login` — Login with email/password and obtain JWT access token
 - `GET /me` — Retrieve currently authenticated user
 
-### 👨‍👩‍👧 Family Circle (`/api/v1/families`)
+### Family Circle (`/api/v1/families`)
 - `GET /current` — Fetch the current user's family details and members count
 
-### 👵 Parent Profiles (`/api/v1/parents`)
+### Parent Profiles (`/api/v1/parents`)
 - `GET /` — List all family parents with calculated adherence and last activity
 - `POST /` — Create a new parent profile (generates initial invite QR token & 6-character short code)
 - `GET /{parent_id}` — Get single parent profile details
@@ -162,13 +162,13 @@ All routes are versioned under `/api/v1` and documented automatically via OpenAP
 - `DELETE /{parent_id}` — Remove parent profile (cascades cleanup of tasks, invites, and instances)
 - `GET /{parent_id}/adherence` — 7-day adherence statistics (`Mon`–`Sun`)
 
-### 🎟 Invites & QR Linking (`/api/v1/invites`)
+### Invites & QR Linking (`/api/v1/invites`)
 - `POST /` — Generate a fresh QR invite token & short code for a parent
 - `GET /parent/{parent_id}` — Re-access the current active QR invite token and 6-character short code anytime
 - `POST /parent/{parent_id}/regenerate` — Regenerate a new invite code and short code for a parent profile
 - `POST /accept` — Parent joins via QR scan or short code (returns session token)
 
-### 📋 Care Tasks (`/api/v1/tasks`)
+### Care Tasks (`/api/v1/tasks`)
 - `GET /` — List active tasks (supports multi-parent filtering and category filtering)
 - `POST /` — Create care task (supports multiple parent assignment via `parent_ids` and optional `scheduled_end_time`; automatically provisions daily instances for each assigned parent)
 - `GET /{task_id}` — Retrieve single care task details
@@ -176,23 +176,23 @@ All routes are versioned under `/api/v1` and documented automatically via OpenAP
 - `DELETE /{task_id}` — Remove a care task and associated scheduled instances
 - `POST /{task_id}/complete` — Child caregiver endpoint to mark task instances completed (permitted even after task end time)
 
-### ⏱ Task Executions (`/api/v1/task-instances`)
+### Task Executions (`/api/v1/task-instances`)
 - `GET /parent/{parent_id}/today` — Retrieve today's timeline schedule for parent
 - `GET /parent/{parent_id}/active` — Retrieve current active / next due task
 - `POST /{id}/complete` — Mark task instance as completed. **Rule**: If task `end_time` has elapsed, parents cannot mark it completed (rejected with `400 Task schedule has ended`), but child caregivers can complete it at any time.
 - `POST /{id}/snooze` — Snooze task instance for 10 minutes
 
-### 🚨 Alerts & Escalations (`/api/v1/alerts`)
+### Alerts & Escalations (`/api/v1/alerts`)
 - `GET /` — Fetch active family alerts and missed task escalations
 - `POST /{id}/dismiss` — Dismiss an escalation
 
-### 🔔 Notifications (`/api/v1/notifications`)
+### Notifications (`/api/v1/notifications`)
 - `GET /` — Retrieve notifications list
 - `POST /{id}/read` — Mark notification as read
 
 ---
 
-## ⚙️ Configuration & Environment Variables
+## Configuration & Environment Variables
 
 Copy the example configuration to initialize your backend environment:
 
@@ -214,7 +214,7 @@ cp backend/.env.example backend/.env
 
 ---
 
-## 🏃 Running the Application Locally
+## Running the Application Locally
 
 ### 1. Prerequisites
 - **Node.js** (v18+) & **npm**
@@ -278,7 +278,7 @@ cd backend
 
 ---
 
-## 🔒 Security Best Practices Implemented
+## Security Best Practices Implemented
 - **No Plaintext Passwords**: Passwords hashed with `bcrypt`.
 - **Zero Committed Secrets**: `.env` and `.venv` excluded via `.gitignore`.
 - **Single-Use QR Tokens**: Enforced at database and service layer to prevent replay attacks.

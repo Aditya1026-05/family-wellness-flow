@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee } from 'lucide-react';
+import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Brand, CategoryIcon, EmptyState, StatusBadge } from './components';
@@ -408,8 +408,9 @@ export function ParentHomePage() {
                 {nextUpcomingItem.task.detail || nextUpcomingItem.task.notes}
               </p>
             )}
-            <p className="mt-2 text-[11px] text-muted-foreground border-t border-border/60 pt-2">
-              🔒 Unlocks during its scheduled time slot.
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground border-t border-border/60 pt-2">
+              <Lock className="size-3 shrink-0" />
+              <span>Unlocks during its scheduled time slot.</span>
             </p>
           </div>
 
