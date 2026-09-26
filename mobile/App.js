@@ -264,6 +264,8 @@ export default function App() {
             body: JSON.stringify({ token: expoPushToken }),
           }).catch(() => {});
         }
+      } else if (data.type === 'CALL_PARENT') {
+        handleCallParent(data.phone);
       }
     } catch (err) {
       // Ignored if non-json
@@ -301,12 +303,10 @@ export default function App() {
   function handleCallParent(phone) {
     Vibration.cancel();
     setActiveAlarmTask(null);
-    if (!phone) {
-      Alert.alert('No Phone Number', 'No phone number is saved for this parent.');
-      return;
-    }
-    Linking.openURL(`tel:${phone}`).catch(() => {
-      Alert.alert('Notice', `Unable to dial ${phone}`);
+    const sanitized = phone ? String(phone).replace(/[^\d+*#]/g, '') : '';
+    const dialUrl = sanitized ? `tel:${sanitized}` : 'tel:';
+    Linking.openURL(dialUrl).catch((err) => {
+      Alert.alert('Notice', `Unable to open phone app: ${err.message}`);
     });
   }
 
@@ -415,8 +415,24 @@ export default function App() {
           <WebView
             ref={webViewRef}
             source={{ uri: webAppUrl }}
+            originWhitelist={['*']}
             injectedJavaScript={injectedBridgeScript}
             onMessage={handleWebViewMessage}
+            onShouldStartLoadWithRequest={(request) => {
+              const { url } = request;
+              if (
+                url.startsWith('tel:') ||
+                url.startsWith('mailto:') ||
+                url.startsWith('sms:') ||
+                url.startsWith('whatsapp:')
+              ) {
+                Linking.openURL(url).catch((err) => {
+                  Alert.alert('Notice', `Unable to open phone app: ${err.message}`);
+                });
+                return false;
+              }
+              return true;
+            }}
             onError={(e) => setWebViewError(e.nativeEvent.description)}
             onHttpError={(e) => {
               if (e.nativeEvent.statusCode >= 500) {

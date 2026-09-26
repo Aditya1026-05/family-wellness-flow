@@ -584,7 +584,27 @@ export function ParentCard({
 export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: () => void }) {
   const isUrgent = alert.priority === 'High' || alert.priority === 'Critical';
   const isCallAction = alert.action_type === 'call_parent' || alert.actionType === 'call_parent' || alert.title.toLowerCase().includes('call');
-  const parentPhone = alert.parent_phone || alert.parentPhone;
+  const parents = useCareStore(s => s.parents);
+  const matchedParent = parents.find(p =>
+    (alert.parent_id && p.id === alert.parent_id) ||
+    (alert.parentId && p.id === alert.parentId) ||
+    (alert.parent_name && p.name && alert.parent_name.toLowerCase() === p.name.toLowerCase()) ||
+    (alert.title && p.name && alert.title.toLowerCase().includes(p.name.toLowerCase()))
+  );
+  const rawPhone = alert.parent_phone || alert.parentPhone || matchedParent?.phone || '';
+  const sanitizedPhone = rawPhone ? rawPhone.replace(/[^\d+*#]/g, '') : '';
+  const telHref = sanitizedPhone ? `tel:${sanitizedPhone}` : (rawPhone ? `tel:${rawPhone}` : 'tel:');
+
+  const handleCallParent = (e: React.MouseEvent) => {
+    // If inside React Native companion app, trigger native phone dialer bridge
+    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+      e.preventDefault();
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'CALL_PARENT',
+        phone: sanitizedPhone || rawPhone,
+      }));
+    }
+  };
 
   return (
     <div className="card-shadow flex flex-col rounded-2xl border border-card-border bg-card p-4 sm:p-5 transition hover:border-border">
@@ -643,7 +663,11 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
             size="sm"
             className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 shadow-xs"
           >
-            <a href={parentPhone ? `tel:${parentPhone}` : "tel:"} className="flex items-center justify-center gap-1.5">
+            <a
+              href={telHref}
+              onClick={handleCallParent}
+              className="flex items-center justify-center gap-1.5"
+            >
               <Phone className="size-3.5" /> Call Parent
             </a>
           </Button>
