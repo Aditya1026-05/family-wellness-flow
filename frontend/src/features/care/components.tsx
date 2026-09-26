@@ -660,63 +660,70 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
     window.location.href = `tel:${targetPhone}`;
   };
 
+  const cleanTitle = (alert.title || '')
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}\u{1F680}-\u{1F6FF}\u{1F600}-\u{1F64F}\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/\bAlarm:\s*/gi, ': ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cleanDetail = (alert.detail || '')
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}\u{1F680}-\u{1F6FF}\u{1F600}-\u{1F64F}\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   return (
-    <div className="card-shadow flex flex-col rounded-2xl border border-card-border bg-card p-4 sm:p-5 transition hover:border-border">
-      {/* Top Header Row: Icon + Badges + Title */}
-      <div className="flex items-start gap-3.5">
+    <div className="card-shadow flex flex-col rounded-2xl border border-card-border bg-card p-4 transition hover:border-border">
+      {/* Header Row: Icon + Title & Badges */}
+      <div className="flex items-start gap-3">
         <div
           className={cn(
-            'grid size-10 shrink-0 place-items-center rounded-xl',
+            'grid size-9 shrink-0 place-items-center rounded-xl',
             isUrgent
-              ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
-              : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
+              ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
+              : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300'
           )}
         >
-          {isCallAction ? <Phone className="size-4.5 animate-pulse" /> : <Bell className="size-4.5" />}
+          {isCallAction ? <Phone className="size-4 text-rose-600" /> : <Info className="size-4 text-amber-600" />}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span
-              className={cn(
-                'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide uppercase',
-                isUrgent
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+            <h3 className="font-semibold text-sm sm:text-base text-foreground leading-snug break-words">
+              {cleanTitle}
+            </h3>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                  isUrgent
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                )}
+              >
+                {alert.priority}
+              </span>
+              {alert.time && (
+                <span className="text-[11px] text-muted-foreground">{alert.time}</span>
               )}
-            >
-              {alert.priority}
-            </span>
-            <span className="text-xs text-muted-foreground shrink-0">{alert.time}</span>
+            </div>
           </div>
 
-          <h3 className="mt-1.5 font-bold text-sm sm:text-base text-foreground leading-snug break-words">
-            {alert.title}
-          </h3>
+          {cleanDetail && (
+            <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed break-words">
+              {cleanDetail}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Overdue Banner if call required */}
-      {isCallAction && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-200/60 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300">
-          <AlertTriangle className="size-3.5 text-rose-600 shrink-0" />
-          <span>45m Overdue · Immediate Call Required</span>
-        </div>
-      )}
-
-      {/* Description text - takes full width naturally */}
-      <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-muted-foreground break-words">
-        {alert.detail}
-      </p>
-
-      {/* Bottom Action Footer */}
-      <div className="mt-4 pt-3.5 border-t border-border/60 flex items-center gap-2.5">
+      {/* Action Footer */}
+      <div className="mt-3 flex items-center gap-2">
         {isCallAction && (
           <Button
             type="button"
             size="sm"
             onClick={handleCallParent}
-            className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-semibold text-xs h-9 shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none"
+            className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-medium text-xs h-8.5 shadow-none inline-flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none"
           >
             <Phone className="size-3.5 shrink-0 pointer-events-none" />
             <span>Call Parent</span>
@@ -727,10 +734,10 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
             variant="outline"
             size="sm"
             onClick={onDismiss}
-            aria-label={`Dismiss ${alert.title}`}
-            title="Dismiss alert"
+            aria-label={`Resolve ${cleanTitle}`}
+            title="Resolve alert"
             className={cn(
-              "rounded-xl text-xs font-semibold h-9",
+              "rounded-xl text-xs font-medium h-8.5 border-border/80 text-muted-foreground hover:text-foreground",
               isCallAction ? "flex-1" : "w-full"
             )}
           >
