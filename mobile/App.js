@@ -265,7 +265,7 @@ export default function App() {
           }).catch(() => {});
         }
       } else if (data.type === 'CALL_PARENT') {
-        handleCallParent(data.phone);
+        handleCallParent(data.phone, data.parent_name);
       }
     } catch (err) {
       // Ignored if non-json
@@ -300,13 +300,44 @@ export default function App() {
     setActiveAlarmTask(null);
   }
 
-  function handleCallParent(phone) {
+  function handleCallParent(phone, parentName) {
     Vibration.cancel();
     setActiveAlarmTask(null);
     const sanitized = phone ? String(phone).replace(/[^\d+*#]/g, '') : '';
-    const dialUrl = sanitized ? `tel:${sanitized}` : 'tel:';
-    Linking.openURL(dialUrl).catch((err) => {
-      Alert.alert('Notice', `Unable to open phone app: ${err.message}`);
+    if (!sanitized) {
+      if (Platform.OS === 'ios' && Alert.prompt) {
+        Alert.prompt(
+          'Call Parent',
+          `Enter phone number to call ${parentName || 'parent'}:`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Call',
+              onPress: (input) => {
+                const clean = input ? input.replace(/[^\d+*#]/g, '') : '';
+                if (clean) {
+                  Linking.openURL(`tel:${clean}`).catch((err) => {
+                    Alert.alert('Notice', `Unable to open phone app: ${err.message}`);
+                  });
+                }
+              },
+            },
+          ],
+          'plain-text',
+          '+91 98765 43210',
+          'phone-pad'
+        );
+      } else {
+        Alert.alert(
+          'No Phone Number Saved',
+          `No phone number is saved for ${parentName || 'parent'}. Please add a phone number in Parent Profile.`
+        );
+      }
+      return;
+    }
+
+    Linking.openURL(`tel:${sanitized}`).catch((err) => {
+      Alert.alert('Notice', `Unable to open phone app for ${sanitized}: ${err.message}`);
     });
   }
 
@@ -491,7 +522,7 @@ export default function App() {
             {activeAlarmTask?.isCallAction ? (
               <TouchableOpacity
                 style={[styles.alarmCompleteButton, { backgroundColor: '#10B981' }]}
-                onPress={() => handleCallParent(activeAlarmTask?.parentPhone)}
+                onPress={() => handleCallParent(activeAlarmTask?.parentPhone, activeAlarmTask?.parentName)}
               >
                 <Text style={styles.alarmCompleteButtonText}>
                   📞 Call {activeAlarmTask?.parentName || 'Parent'} Directly Now

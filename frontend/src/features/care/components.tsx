@@ -596,14 +596,53 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
   const telHref = sanitizedPhone ? `tel:${sanitizedPhone}` : (rawPhone ? `tel:${rawPhone}` : 'tel:');
 
   const handleCallParent = (e: React.MouseEvent) => {
-    // If inside React Native companion app, trigger native phone dialer bridge
-    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-      e.preventDefault();
-      (window as any).ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'CALL_PARENT',
-        phone: sanitizedPhone || rawPhone,
-      }));
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 1. Resolve phone number from alert, parent store, or fallback
+    let targetPhone = sanitizedPhone || rawPhone;
+    if (!targetPhone) {
+      for (const p of parents) {
+        if (p.phone) {
+          targetPhone = p.phone.replace(/[^\d+*#]/g, '');
+          break;
+        }
+      }
     }
+
+    if (!targetPhone) {
+      const parentLabel = matchedParent?.name || alert.parent_name || 'parent';
+      const entered = window.prompt(
+        `Enter phone number to call ${parentLabel}:`,
+        '+91 98765 43210'
+      );
+      if (entered) {
+        targetPhone = entered.replace(/[^\d+*#]/g, '');
+      }
+    }
+
+    if (!targetPhone) {
+      alert(`No phone number available to call ${matchedParent?.name || 'parent'}.`);
+      return;
+    }
+
+    // 2. Dispatch via native React Native bridge if inside companion app
+    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+      try {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'CALL_PARENT',
+            phone: targetPhone,
+            parent_name: matchedParent?.name || alert.parent_name || 'Parent',
+          })
+        );
+      } catch (err) {
+        console.warn('Bridge postMessage error:', err);
+      }
+    }
+
+    // 3. Trigger phone dialer navigation
+    window.location.href = `tel:${targetPhone}`;
   };
 
   return (
@@ -659,17 +698,13 @@ export function AlertCard({ alert, onDismiss }: { alert: CareAlert; onDismiss?: 
       <div className="mt-4 pt-3.5 border-t border-border/60 flex items-center gap-2.5">
         {isCallAction && (
           <Button
-            asChild
+            type="button"
             size="sm"
-            className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 shadow-xs"
+            onClick={handleCallParent}
+            className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-semibold text-xs h-9 shadow-xs inline-flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation select-none"
           >
-            <a
-              href={telHref}
-              onClick={handleCallParent}
-              className="flex items-center justify-center gap-1.5"
-            >
-              <Phone className="size-3.5" /> Call Parent
-            </a>
+            <Phone className="size-3.5 shrink-0 pointer-events-none" />
+            <span>Call Parent</span>
           </Button>
         )}
         {onDismiss && (
