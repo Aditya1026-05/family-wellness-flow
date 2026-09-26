@@ -14,6 +14,7 @@ import {
   Platform,
   TextInput,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
