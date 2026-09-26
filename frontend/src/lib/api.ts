@@ -77,6 +77,50 @@ export function setCurrentUser(user: any): void {
   }
 }
 
+export function syncNativeDeviceLink(): void {
+  if (typeof window === 'undefined') return;
+  const parent = getCurrentParentProfile();
+  const user = getCurrentUser();
+  if (parent) {
+    try {
+      (window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({
+          type: 'DEVICE_LINK',
+          role: 'parent',
+          parent_profile_id: parent?.parent_profile_id || parent?.id,
+          family_id: parent?.family_id,
+          parent_name: parent?.parent_name || parent?.name || parent?.relationship,
+        })
+      );
+    } catch {}
+  } else if (user) {
+    try {
+      (window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({
+          type: 'DEVICE_LINK',
+          role: 'child',
+          user_id: user?.id,
+          family_id: user?.family_id,
+          user_name: user?.full_name || user?.email,
+        })
+      );
+    } catch {}
+  } else {
+    try {
+      (window as any).ReactNativeWebView?.postMessage(
+        JSON.stringify({
+          type: 'DEVICE_UNLINK',
+        })
+      );
+    } catch {}
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(syncNativeDeviceLink, 300);
+  setTimeout(syncNativeDeviceLink, 1500);
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken() || getParentToken();
   const headers = new Headers(options.headers || {});
@@ -139,8 +183,30 @@ export const api = {
         localStorage.removeItem('carecircle_user');
         localStorage.removeItem('carecircle_parent_token');
         localStorage.removeItem('carecircle_parent_profile');
+        try {
+          (window as any).ReactNativeWebView?.postMessage(
+            JSON.stringify({
+              type: 'DEVICE_UNLINK',
+            })
+          );
+        } catch {}
+        window.location.href = '/login';
       }
-    }
+    },
+    disconnectParent: () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('carecircle_parent_token');
+        localStorage.removeItem('carecircle_parent_profile');
+        try {
+          (window as any).ReactNativeWebView?.postMessage(
+            JSON.stringify({
+              type: 'DEVICE_UNLINK',
+            })
+          );
+        } catch {}
+        window.location.href = '/parent/scan';
+      }
+    },
   },
 
   parents: {

@@ -100,19 +100,14 @@ def register_device_token(
 @router.post("/unregister", summary="Deactivate a device push token")
 def unregister_device_token(
     payload: DeviceTokenUnregister,
-    identity: dict = Depends(get_caller_identity),
     db: Session = Depends(get_db),
 ):
-    if identity.get("role") == "anonymous":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-        )
-
     token_str = payload.token.strip()
     device = db.scalar(select(DeviceToken).where(DeviceToken.token == token_str))
     if device:
         device.is_active = False
+        device.user_id = None
+        device.parent_profile_id = None
         db.commit()
 
     return {"status": "unregistered", "token": token_str}

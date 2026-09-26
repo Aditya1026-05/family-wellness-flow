@@ -290,8 +290,8 @@ export function ParentHomePage() {
     return currentMinutes > item.endM + 30;
   });
 
-  // Pick active task: currently due first, otherwise overdue task, otherwise first pending task
-  const activeItem = currentSlotItem || overdueItem || (pendingItems.length > 0 ? pendingItems[0] : null);
+  // Pick active task: currently due first, otherwise overdue task
+  const activeItem = currentSlotItem || overdueItem;
   const active = activeItem?.task;
   const isOverdue = !!overdueItem && !currentSlotItem && activeItem === overdueItem;
   const nextUpcomingItem = !activeItem && pendingItems.length > 0 ? pendingItems[0] : null;

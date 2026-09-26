@@ -16,6 +16,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -95,6 +96,21 @@ export default function App() {
       Vibration.cancel();
     }
   }, [activeAlarmTask]);
+
+  // Restore persisted linked profile across reloads and app restarts
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('carecircle_linked_profile');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setLinkedProfile(parsed);
+        }
+      } catch (e) {
+        console.log('Restore profile note:', e.message);
+      }
+    })();
+  }, []);
 
   // Initialize native push token and permissions
   useEffect(() => {
@@ -177,8 +193,18 @@ export default function App() {
 
       if (tokenData?.data) {
         setExpoPushToken(tokenData.data);
-        // Initial registration with backend
-        await registerWithBackend(tokenData.data);
+        // Initial registration with backend using persisted profile if available
+        try {
+          const saved = await AsyncStorage.getItem('carecircle_linked_profile');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            await registerWithBackend(tokenData.data, parsed);
+          } else {
+            await registerWithBackend(tokenData.data);
+          }
+        } catch {
+          await registerWithBackend(tokenData.data);
+        }
       }
     } catch (e) {
       console.log('Push token note:', e.message);
@@ -207,6 +233,7 @@ export default function App() {
         setIsRegistered(true);
         if (linkData) {
           setLinkedProfile(linkData);
+          AsyncStorage.setItem('carecircle_linked_profile', JSON.stringify(linkData)).catch(() => {});
         }
       }
     } catch (err) {
@@ -221,8 +248,21 @@ export default function App() {
       if (data.type === 'DEVICE_LINK') {
         // Automatically link this physical device to the authenticated parent or child
         setLinkedProfile(data);
+        AsyncStorage.setItem('carecircle_linked_profile', JSON.stringify(data)).catch(() => {});
         if (expoPushToken) {
           registerWithBackend(expoPushToken, data);
+        }
+      } else if (data.type === 'DEVICE_UNLINK') {
+        // User logged out or disconnected circle: completely unbind and deactivate token
+        setLinkedProfile(null);
+        setIsRegistered(false);
+        AsyncStorage.removeItem('carecircle_linked_profile').catch(() => {});
+        if (expoPushToken) {
+          fetch(`${backendUrl}/api/v1/devices/unregister`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: expoPushToken }),
+          }).catch(() => {});
         }
       }
     } catch (err) {
