@@ -44,3 +44,5 @@ __pycache__/
 htmlcov/
 .env
 backend/.env
+*.apk
+carecircle-v1.0.0.apk
