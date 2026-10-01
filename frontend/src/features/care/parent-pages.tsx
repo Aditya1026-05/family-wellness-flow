@@ -196,19 +196,139 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function InAppQrScanner({
+  onScanSuccess,
+  onClose,
+}: {
+  onScanSuccess: (code: string) => void;
+  onClose: () => void;
+}) {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [starting, setStarting] = useState(true);
+  const scannerRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function startScanner() {
+      try {
+        setStarting(true);
+        setErrorMsg(null);
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (!isMounted) return;
+
+        const scanner = new Html5Qrcode('carecircle-qr-reader');
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+            aspectRatio: 1.0,
+          },
+          (decodedText: string) => {
+            if (!isMounted) return;
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              try { navigator.vibrate([60, 40, 60]); } catch {}
+            }
+
+            let extracted = decodedText.trim();
+            if (extracted.includes('code=')) {
+              extracted = extracted.split('code=')[1].split('&')[0].split('#')[0];
+            } else if (extracted.includes('carecircle://join/')) {
+              extracted = extracted.split('carecircle://join/')[1].split('?')[0];
+            } else if (extracted.includes('/join/')) {
+              extracted = extracted.split('/join/')[1].split('?')[0];
+            }
+            extracted = extracted.trim().toUpperCase();
+
+            scanner.stop().then(() => {
+              try { scanner.clear(); } catch {}
+              onScanSuccess(extracted);
+            }).catch(() => {
+              onScanSuccess(extracted);
+            });
+          },
+          () => {
+            // Frame scanned, awaiting QR code in viewport
+          }
+        );
+        if (isMounted) {
+          setStarting(false);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        setStarting(false);
+        const msg = String(err?.message || err || '');
+        if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('notallowed')) {
+          setErrorMsg('Camera permission needed. Please allow camera access in phone settings or enter code manually.');
+        } else {
+          setErrorMsg('Unable to access camera. Please enter your 6-character code below.');
+        }
+      }
+    }
+
+    startScanner();
+
+    return () => {
+      isMounted = false;
+      if (scannerRef.current) {
+        try {
+          if (scannerRef.current.isScanning) {
+            scannerRef.current.stop().then(() => {
+              try { scannerRef.current.clear(); } catch {}
+            }).catch(() => {});
+          } else {
+            scannerRef.current.clear();
+          }
+        } catch {}
+      }
+    };
+  }, []);
+
+  return (
+    <div className="relative mx-auto w-full max-w-[240px] overflow-hidden rounded-2xl border-2 border-primary bg-slate-950 shadow-xl">
+      <div id="carecircle-qr-reader" className="w-full aspect-square" />
+      {starting && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 p-4 text-white">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent mb-2" />
+          <p className="text-xs font-bold tracking-wide">Starting Camera...</p>
+        </div>
+      )}
+      {errorMsg ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 p-4 text-center text-white">
+          <p className="text-xs text-rose-300 font-medium mb-3">{errorMsg}</p>
+          <Button size="sm" variant="secondary" onClick={onClose} className="text-xs h-8">
+            Close Camera
+          </Button>
+        </div>
+      ) : (
+        <div className="p-2.5 bg-slate-900/95 flex justify-between items-center text-white">
+          <span className="text-[11px] font-semibold text-sky-400 pl-1">Scanning for Family QR...</span>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-6 px-2 text-[11px] text-rose-300 hover:text-rose-100 hover:bg-white/10">
+            Cancel
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ScanPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const navigate = useNavigate();
 
-  const proceed = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code.trim()) return;
+  const connectWithCode = async (inviteCode: string) => {
+    const clean = inviteCode.trim().toUpperCase();
+    if (!clean) return;
     setLoading(true);
     setError('');
     try {
-      await api.invites.accept(code.trim());
+      await api.invites.accept(clean);
       await useCareStore.getState().init();
       navigate({ to: '/parent/welcome' });
     } catch (err: any) {
@@ -217,6 +337,25 @@ export function ScanPage() {
       setLoading(false);
     }
   };
+
+  const proceed = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await connectWithCode(code);
+  };
+
+  // Automatically process deep link query code if passed via external camera or redirect
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryCode = urlParams.get('code');
+      if (queryCode && queryCode.trim()) {
+        const clean = queryCode.trim().toUpperCase();
+        setCode(clean);
+        connectWithCode(clean);
+      }
+    } catch {}
+  }, []);
 
   return (
     <div className="min-h-[100dvh] bg-[#f4f8fc] dark:bg-background pb-44">
@@ -235,21 +374,39 @@ export function ScanPage() {
           Connect to your family
         </h1>
         <p className="mt-3 leading-7 text-muted-foreground">
-          Enter the 6-character code your family shared with you, or scan their QR code.
+          Scan the family QR code using the camera below, or type your 6-character code.
         </p>
 
         <div className="mt-8 rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
-          <div className="mx-auto grid aspect-square w-full max-w-[200px] place-items-center rounded-2xl border-2 border-dashed border-primary/40 bg-blue-50 text-primary dark:bg-blue-950/20">
-            <div className="text-center">
-              <Camera className="mx-auto size-12" />
-              <p className="mt-2 text-xs font-semibold">QR scanner preview</p>
+          {!isScanning ? (
+            <div
+              onClick={() => setIsScanning(true)}
+              className="mx-auto grid aspect-square w-full max-w-[200px] cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-primary/50 bg-blue-50/70 text-primary transition-all hover:bg-blue-100/70 hover:border-primary active:scale-95 dark:bg-blue-950/20"
+              title="Tap to scan family QR code"
+            >
+              <div className="text-center p-3">
+                <div className="mx-auto mb-2 grid size-14 place-items-center rounded-2xl bg-primary text-white shadow-md">
+                  <Camera className="size-7" />
+                </div>
+                <p className="text-sm font-bold text-foreground">Scan Family QR</p>
+                <p className="mt-1 text-xs text-primary font-semibold">Tap to open camera</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <InAppQrScanner
+              onScanSuccess={(scannedCode) => {
+                setIsScanning(false);
+                setCode(scannedCode);
+                connectWithCode(scannedCode);
+              }}
+              onClose={() => setIsScanning(false)}
+            />
+          )}
 
           <form onSubmit={proceed} className="mt-6 space-y-4">
             <div>
               <label htmlFor="invite-input" className="mb-2 block text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                6-Character Invite Code
+                Or Type 6-Character Code
               </label>
               <Input
                 id="invite-input"
@@ -268,7 +425,7 @@ export function ScanPage() {
           </form>
 
           <p className="mt-4 text-xs text-muted-foreground">
-            Tip: You can type the 6-character code or paste the full link
+            Tip: Point camera directly at the QR code on the child's screen to connect instantly
           </p>
         </div>
 

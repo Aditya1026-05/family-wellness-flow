@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, ArrowLeft, Bell, CalendarDays, Check, CheckCircle2, ClipboardList, Copy, Download, Heart, Pencil, Plus, QrCode, Share2, Trash2, TrendingUp, Users, Volume2, Vibrate } from 'lucide-react';
@@ -20,6 +20,10 @@ import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/
 
 export function DashboardPage() {
   const { parents, tasks, alerts, updateTask, deleteTask, updateParent, deleteParent, completeTask, dismissAlert } = useCareStore();
+
+  useEffect(() => {
+    useCareStore.getState().init();
+  }, []);
   const [editingTask, setEditingTask] = useState<CareTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<CareTask | null>(null);
   const [editingParent, setEditingParent] = useState<Parent | null>(null);
@@ -327,8 +331,11 @@ export function AddParentPage() {
   const generate = async (e: React.FormEvent) => {
     e.preventDefault();
     const parent = await addParent(name.trim(), relationship);
-    setCode(parent.invite_code || `carecircle://join/${parent.id}`);
-    setShortCode(parent.short_code || '');
+    const short = parent.short_code || '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://carecircle.app';
+    const qrUrl = short ? `${origin}/parent/scan?code=${short}` : (parent.invite_code || `carecircle://join/${parent.id}`);
+    setCode(qrUrl);
+    setShortCode(short);
   };
 
   const download = async () => {

@@ -595,7 +595,11 @@ export function ParentInviteModal({
             <div id="modal-invite-qr" className="mx-auto my-3 w-fit rounded-2xl border bg-card p-4 shadow-sm flex flex-col items-center">
               <QRCodeCanvas
                 id="modal-invite-qr-canvas"
-                value={inviteData?.qr_value || `carecircle://join/${parent.id}`}
+                value={
+                  (inviteData?.code && typeof window !== 'undefined')
+                    ? `${window.location.origin}/parent/scan?code=${inviteData.code}`
+                    : (inviteData?.qr_value || `https://carecircle.app/parent/scan?code=${parent.id}`)
+                }
                 size={180}
                 fgColor="#2563eb"
                 bgColor="#ffffff"

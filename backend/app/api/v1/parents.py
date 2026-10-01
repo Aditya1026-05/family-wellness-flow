@@ -92,7 +92,7 @@ def get_parent_invite(
         id=str(invite.id),
         token=invite.token,
         code=invite.code,
-        qr_value=f"carecircle://join/{invite.token}",
+        qr_value=f"https://carecircle.app/parent/scan?code={invite.code}",
         expires_at=invite.expires_at,
         is_used=invite.is_used,
         parent_profile_id=str(invite.parent_profile_id),

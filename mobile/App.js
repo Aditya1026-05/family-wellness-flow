@@ -19,6 +19,7 @@ import {
   Image,
   NativeModules,
   NativeEventEmitter,
+  PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -131,8 +132,44 @@ export default function App() {
   const [customHostInput, setCustomHostInput] = useState(DEFAULT_LOCAL_WEB_URL);
 
   const webViewRef = useRef(null);
+  const pendingDeepLinkRef = useRef(null);
   const notificationListener = useRef();
   const responseListener = useRef();
+
+  // Route deep links (e.g. carecircle://join/CODE or .../parent/scan?code=CODE) into WebView
+  const navigateToInviteCode = (rawUrl) => {
+    if (!rawUrl) return;
+    try {
+      let code = null;
+      if (rawUrl.includes('code=')) {
+        const match = rawUrl.match(/[?&]code=([a-zA-Z0-9_-]+)/);
+        if (match) code = match[1];
+      } else if (rawUrl.startsWith('carecircle://join/')) {
+        code = rawUrl.replace('carecircle://join/', '').split('?')[0].split('/')[0];
+      } else if (rawUrl.startsWith('carecircle://')) {
+        const parts = rawUrl.replace('carecircle://', '').split('/');
+        if (parts.length > 0 && parts[parts.length - 1]) {
+          code = parts[parts.length - 1];
+        }
+      }
+
+      if (code) {
+        pendingDeepLinkRef.current = code;
+        const targetPath = `/parent/scan?code=${encodeURIComponent(code)}`;
+        const navScript = `
+          (function() {
+            if (window.location.pathname !== '/parent/scan' || !window.location.search.includes('${code}')) {
+              window.location.href = '${targetPath}';
+            }
+          })();
+          true;
+        `;
+        webViewRef.current?.injectJavaScript(navScript);
+      }
+    } catch (e) {
+      console.log('Deep link parse note:', e.message);
+    }
+  };
 
   // Determine effective Web App URL and Backend API URL
   const webAppUrl = customServerUrl
@@ -334,8 +371,32 @@ export default function App() {
     };
   }, []);
 
+  // Listen for incoming deep links from external camera scanning or browser redirects
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        setTimeout(() => navigateToInviteCode(url), 1200);
+      }
+    });
+
+    const linkSub = Linking.addEventListener('url', (event) => {
+      navigateToInviteCode(event.url);
+    });
+
+    return () => {
+      if (linkSub?.remove) linkSub.remove();
+    };
+  }, []);
+
   async function initPermissionsAndToken() {
     try {
+      if (Platform.OS === 'android') {
+        try {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+        } catch (e) {
+          console.log('Camera perm request note:', e.message);
+        }
+      }
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       if (existingStatus !== 'granted') {
@@ -1004,8 +1065,26 @@ export default function App() {
             originWhitelist={['*']}
             injectedJavaScript={injectedBridgeScript}
             onMessage={handleWebViewMessage}
+            onLoadEnd={() => {
+              if (pendingDeepLinkRef.current) {
+                const code = pendingDeepLinkRef.current;
+                const navScript = `
+                  (function() {
+                    if (window.location.pathname !== '/parent/scan' || !window.location.search.includes('${code}')) {
+                      window.location.href = '/parent/scan?code=${encodeURIComponent(code)}';
+                    }
+                  })();
+                  true;
+                `;
+                webViewRef.current?.injectJavaScript(navScript);
+              }
+            }}
             onShouldStartLoadWithRequest={(request) => {
               const { url } = request;
+              if (url.startsWith('carecircle://')) {
+                navigateToInviteCode(url);
+                return false;
+              }
               if (
                 url.startsWith('tel:') ||
                 url.startsWith('mailto:') ||
@@ -1038,6 +1117,13 @@ export default function App() {
             overScrollMode="always"
             scrollEnabled={true}
             allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            androidCameraPermissionOptions={{
+              title: 'Camera Permission',
+              message: 'CareCircle needs camera access to scan family QR codes',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            }}
             javaScriptEnabled={true}
             domStorageEnabled={true}
             showsVerticalScrollIndicator={true}

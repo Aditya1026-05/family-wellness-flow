@@ -74,9 +74,11 @@ class InviteService:
     ) -> InviteAcceptOut:
         # Extract code from URL or scheme if passed
         cleaned = raw_code.strip()
-        if "://" in cleaned:
+        if "code=" in cleaned:
+            cleaned = cleaned.split("code=")[-1].split("&")[0].split("#")[0]
+        elif "://" in cleaned:
             cleaned = cleaned.split("/")[-1].split("?")[0]
-        if "/" in cleaned:
+        elif "/" in cleaned:
             cleaned = cleaned.split("/")[-1].split("?")[0]
 
         now = datetime.now(timezone.utc)
