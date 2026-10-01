@@ -89,11 +89,15 @@ class AlarmRingtoneModule(private val reactContext: ReactApplicationContext) : R
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis.toLong(), pendingIntent)
             }
 
-            // Track scheduled ID
+            // Track scheduled ID and ensure not marked deleted
+            val baseId = id.replace(Regex("_(15|30)$"), "")
             val prefs = reactContext.getSharedPreferences("carecircle_alarms", Context.MODE_PRIVATE)
             val set = prefs.getStringSet("scheduled_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
+            val delSet = prefs.getStringSet("deleted_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
+            delSet.remove(id)
+            delSet.remove(baseId)
             set.add(id)
-            prefs.edit().putStringSet("scheduled_ids", set).apply()
+            prefs.edit().putStringSet("scheduled_ids", set).putStringSet("deleted_ids", delSet).apply()
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -104,27 +108,41 @@ class AlarmRingtoneModule(private val reactContext: ReactApplicationContext) : R
         try {
             val alarmManager = reactContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
                 ?: return
-            val intent = Intent(reactContext, AlarmReceiver::class.java).apply {
-                action = AlarmReceiver.ACTION_TRIGGER_ALARM
-            }
-            val requestCode = id.hashCode()
-            val pendingIntent = PendingIntent.getBroadcast(
-                reactContext,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-            )
-            if (pendingIntent != null) {
-                alarmManager.cancel(pendingIntent)
-                pendingIntent.cancel()
-            }
+            val baseId = id.replace(Regex("_(15|30)$"), "")
+            val idsToCancel = listOf(baseId, "${baseId}_15", "${baseId}_30")
             val prefs = reactContext.getSharedPreferences("carecircle_alarms", Context.MODE_PRIVATE)
             val set = prefs.getStringSet("scheduled_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
-            set.remove(id)
-            prefs.edit().putStringSet("scheduled_ids", set).apply()
+            val delSet = prefs.getStringSet("deleted_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
+
+            for (currId in idsToCancel) {
+                val intent = Intent(reactContext, AlarmReceiver::class.java).apply {
+                    action = AlarmReceiver.ACTION_TRIGGER_ALARM
+                }
+                val requestCode = currId.hashCode()
+                val pendingIntent = PendingIntent.getBroadcast(
+                    reactContext,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                )
+                if (pendingIntent != null) {
+                    alarmManager.cancel(pendingIntent)
+                    pendingIntent.cancel()
+                }
+                set.remove(currId)
+                delSet.add(currId)
+            }
+            prefs.edit().putStringSet("scheduled_ids", set).putStringSet("deleted_ids", delSet).apply()
+            AlarmService.stopAlarm(reactContext)
+            reactContext.sendBroadcast(Intent(AlarmReceiver.ACTION_DISMISS_ALARM))
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    @ReactMethod
+    fun recordDeletedTask(id: String) {
+        cancelAlarm(id)
     }
 
     @ReactMethod

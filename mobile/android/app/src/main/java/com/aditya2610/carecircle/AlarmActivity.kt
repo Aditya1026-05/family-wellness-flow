@@ -37,9 +37,21 @@ class AlarmActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        taskId = intent.getStringExtra("alarm_task_id")
+        val rawId = taskId ?: ""
+        val baseId = rawId.replace(Regex("_(15|30)$"), "")
+
+        val prefs = getSharedPreferences("carecircle_alarms", Context.MODE_PRIVATE)
+        val deletedIds = prefs.getStringSet("deleted_ids", emptySet()) ?: emptySet()
+        if (deletedIds.contains(rawId) || deletedIds.contains(baseId)) {
+            // Task is deleted or cancelled. Immediately dismiss and exit!
+            AlarmService.stopAlarm(this)
+            finish()
+            return
+        }
+
         configureLockScreen()
 
-        taskId = intent.getStringExtra("alarm_task_id")
         val taskTitle = intent.getStringExtra("alarm_task_title") ?: "Scheduled Care Action"
         val taskBody = intent.getStringExtra("alarm_task_body") ?: "Time for your scheduled care routine."
 
@@ -247,13 +259,23 @@ class AlarmActivity : Activity() {
 
     private fun handleDismiss() {
         AlarmService.stopAlarm(this)
+        val id = taskId
+        if (!id.isNullOrEmpty()) {
+            val baseId = id.replace(Regex("_(15|30)$"), "")
+            cancelEscalationAlarms(baseId)
+        }
         finish()
     }
 
     private fun cancelEscalationAlarms(id: String) {
         try {
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val ids = listOf(id, "${id}_15", "${id}_30")
+            val baseId = id.replace(Regex("_(15|30)$"), "")
+            val ids = listOf(baseId, "${baseId}_15", "${baseId}_30")
+            val prefs = getSharedPreferences("carecircle_alarms", Context.MODE_PRIVATE)
+            val scheduledSet = prefs.getStringSet("scheduled_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
+            val deletedSet = prefs.getStringSet("deleted_ids", HashSet<String>())?.toMutableSet() ?: mutableSetOf()
+
             for (currId in ids) {
                 val intent = Intent(this, AlarmReceiver::class.java).apply {
                     action = AlarmReceiver.ACTION_TRIGGER_ALARM
@@ -268,7 +290,10 @@ class AlarmActivity : Activity() {
                     alarmManager.cancel(pi)
                     pi.cancel()
                 }
+                scheduledSet.remove(currId)
+                deletedSet.add(currId)
             }
+            prefs.edit().putStringSet("scheduled_ids", scheduledSet).putStringSet("deleted_ids", deletedSet).apply()
         } catch (e: Exception) {
             e.printStackTrace()
         }

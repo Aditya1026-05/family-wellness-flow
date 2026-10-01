@@ -152,8 +152,16 @@ export const useCareStore = create<CareState>((set, get) => ({
   deleteTask: async (id) => {
     set(state => ({
       tasks: state.tasks.filter(t => t.id !== id),
+      alerts: state.alerts.filter(a => a.taskId !== id && (a as any).task_id !== id),
     }));
     try {
+      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'CANCEL_ALARM',
+          taskId: id,
+          id: id,
+        }));
+      }
       await api.tasks.delete(id);
     } catch (e) {
       console.warn('Backend delete task sync notice:', e);
@@ -212,6 +220,13 @@ export const useCareStore = create<CareState>((set, get) => ({
     });
 
     try {
+      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'CANCEL_ALARM',
+          taskId: targetId,
+          id: targetId,
+        }));
+      }
       await api.tasks.complete(targetId, options);
       const [updatedTasks, updatedAlerts] = await Promise.all([
         api.tasks.list().catch(() => null),

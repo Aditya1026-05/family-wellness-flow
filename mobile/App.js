@@ -425,6 +425,7 @@ export default function App() {
 
   const alarmedKeysRef = useRef(new Set());
   const scheduledAlarmsRef = useRef(new Set());
+  const trackedTaskIdsRef = useRef(new Set());
 
   // Background active task poller to guarantee alarms fire on time
   useEffect(() => {
@@ -443,10 +444,42 @@ export default function App() {
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
         const nowMillis = Date.now();
 
+        // Detect any previously scheduled tasks that were deleted and immediately purge hardware alarms
+        const currentActiveTaskIds = new Set();
+        for (const inst of instances) {
+          if (inst.status === 'pending' || inst.status === 'snoozed') {
+            if (inst.id) currentActiveTaskIds.add(String(inst.id));
+            const pId = inst.task_id || inst.taskId || (inst.task && inst.task.id);
+            if (pId) currentActiveTaskIds.add(String(pId));
+          }
+        }
+
+        for (const prevId of Array.from(trackedTaskIdsRef.current)) {
+          if (!currentActiveTaskIds.has(prevId)) {
+            AlarmRingtone?.cancelAlarm(prevId);
+            AlarmRingtone?.cancelAlarm(`${prevId}_15`);
+            AlarmRingtone?.cancelAlarm(`${prevId}_30`);
+            AlarmRingtone?.recordDeletedTask?.(prevId);
+            trackedTaskIdsRef.current.delete(prevId);
+            for (const key of Array.from(scheduledAlarmsRef.current)) {
+              if (key.includes(prevId)) {
+                scheduledAlarmsRef.current.delete(key);
+              }
+            }
+            if (activeAlarmTask?.taskId === prevId || (activeAlarmTask?.taskId && activeAlarmTask.taskId.startsWith(prevId))) {
+              AlarmRingtone?.stopAlarm();
+              setActiveAlarmTask(null);
+            }
+          }
+        }
+
         for (const inst of instances) {
           const t = inst.task || inst;
           if (inst.status !== 'pending' && inst.status !== 'snoozed') continue;
           if (!t.ring_alarm && !t.ringAlarm) continue;
+          if (inst.id) trackedTaskIdsRef.current.add(String(inst.id));
+          const pId = inst.task_id || inst.taskId || t.id;
+          if (pId) trackedTaskIdsRef.current.add(String(pId));
 
           const timeStr = t.scheduled_time || t.time;
           if (!timeStr) continue;
@@ -575,11 +608,18 @@ export default function App() {
       } else if (data.type === 'TASK_ALARM') {
         handleTriggerTaskAlarm(data.task);
       } else if (data.type === 'CANCEL_ALARM') {
-        const id = String(data.taskId || '');
+        const id = String(data.taskId || data.id || '');
         if (id) {
           AlarmRingtone?.cancelAlarm(id);
           AlarmRingtone?.cancelAlarm(`${id}_15`);
           AlarmRingtone?.cancelAlarm(`${id}_30`);
+          AlarmRingtone?.recordDeletedTask?.(id);
+          trackedTaskIdsRef.current.delete(id);
+          for (const key of Array.from(scheduledAlarmsRef.current)) {
+            if (key.includes(id)) {
+              scheduledAlarmsRef.current.delete(key);
+            }
+          }
         }
         AlarmRingtone?.stopAlarm();
         setActiveAlarmTask(null);
@@ -663,7 +703,15 @@ export default function App() {
   function handleDismissAlarm() {
     Vibration.cancel();
     AlarmRingtone?.stopAlarm();
+    const task = activeAlarmTask;
     setActiveAlarmTask(null);
+    if (task?.taskId) {
+      const id = String(task.taskId);
+      AlarmRingtone?.cancelAlarm(id);
+      AlarmRingtone?.cancelAlarm(`${id}_15`);
+      AlarmRingtone?.cancelAlarm(`${id}_30`);
+      AlarmRingtone?.recordDeletedTask?.(id);
+    }
   }
 
   function handleCallParent(phone, parentName) {
