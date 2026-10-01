@@ -17,21 +17,26 @@ import {
   ScrollView,
   Switch,
   Image,
+  NativeModules,
+  NativeEventEmitter,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
+const { AlarmRingtone } = NativeModules;
+const alarmEmitter = AlarmRingtone ? new NativeEventEmitter(AlarmRingtone) : null;
+
 // Configure how notifications appear when app is foregrounded
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const isUrgent = Boolean(
-      notification.request.content.data?.ring_alarm ||
-      notification.request.content.data?.is_urgent
-    );
+    const data = notification.request.content.data || {};
+    const isUrgent = Boolean(data.ring_alarm || data.ring_sound || data.is_urgent);
     return {
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
       priority: isUrgent
@@ -41,44 +46,49 @@ Notifications.setNotificationHandler({
   },
 });
 
-// Configure Android Notification Channels with phone's default ringtone and vibration
+// Configure Android Notification Channels with phone's alarm ringtone and strong vibration
 async function setupNotificationChannels() {
   if (Platform.OS === 'android') {
-    const ringtoneChannelConfig = {
-      name: 'Urgent Task Alarms & Ringtone',
+    const urgentAlarmChannelConfig = {
+      name: 'Urgent Care Alarms & Ringtone',
       importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 600, 300, 600, 300, 600],
+      vibrationPattern: [0, 800, 400, 800, 400, 800],
       lightColor: '#EF4444',
-      sound: 'default',
       enableVibrate: true,
       enableLights: true,
       bypassDnd: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       audioAttributes: {
-        usage: Notifications.AndroidAudioUsage.RINGTONE, // Plays phone's native default ringtone
+        usage: Notifications.AndroidAudioUsage.ALARM, // Guarantees sound and vibration when screen is off or phone is locked
         contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-        flags: {
-          enforceAudibility: true,
-          requestHardwareAudioVideoSynchronization: false,
-        },
       },
     };
 
-    // Delete older channel so Android OS purges the cached non-ringtone setting
+    // Clean up older channels that may have had erroneous sound configs
     try {
-      await Notifications.deleteNotificationChannelAsync('urgent_alarm');
+      await Notifications.deleteNotificationChannelAsync('carecircle_urgent_alarm_v12').catch(() => {});
+      await Notifications.deleteNotificationChannelAsync('carecircle_urgent_v10').catch(() => {});
+      await Notifications.deleteNotificationChannelAsync('carecircle_reminders_v3').catch(() => {});
+    } catch {}
+
+    // Register active urgent alarm channels
+    try {
+      await Notifications.setNotificationChannelAsync('carecircle_urgent_alarm_v14', urgentAlarmChannelConfig);
+      await Notifications.setNotificationChannelAsync('carecircle_urgent_alarm_v12', urgentAlarmChannelConfig);
+      await Notifications.setNotificationChannelAsync('carecircle_urgent_v10', urgentAlarmChannelConfig);
     } catch (e) {
-      // Ignored
+      console.log('Channel config note:', e.message);
     }
 
-    await Notifications.setNotificationChannelAsync('urgent_alarm', ringtoneChannelConfig);
-    await Notifications.setNotificationChannelAsync('urgent_alarm_v2', ringtoneChannelConfig);
-
-    await Notifications.setNotificationChannelAsync('carecircle-reminders', {
+    await Notifications.setNotificationChannelAsync('carecircle_reminders_v4', {
       name: 'Care Reminders',
       importance: Notifications.AndroidImportance.HIGH,
-      sound: 'default',
       enableVibrate: true,
+      vibrationPattern: [0, 500, 250, 500],
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.NOTIFICATION,
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+      },
     });
   }
 }
@@ -86,11 +96,17 @@ async function setupNotificationChannels() {
 // Initialize notification channels on module load
 setupNotificationChannels();
 
-// Current Mac local network IP
-const DEFAULT_HOST = '172.16.36.36';
+// Endpoints: Local reverse-port forwarded development by default
+const DEFAULT_LOCAL_WEB_URL = 'http://127.0.0.1:8080';
+const DEFAULT_LOCAL_BACKEND_URL = 'http://127.0.0.1:8001';
+const DEFAULT_PROD_WEB_URL = process.env.EXPO_PUBLIC_WEB_URL || DEFAULT_LOCAL_WEB_URL;
+const DEFAULT_PROD_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || DEFAULT_LOCAL_BACKEND_URL;
+const DEFAULT_DEV_HOST = '127.0.0.1';
 
 export default function App() {
-  const [serverHost, setServerHost] = useState(DEFAULT_HOST);
+  const isProduction = !__DEV__;
+  const [customServerUrl, setCustomServerUrl] = useState('');
+  const [serverHost, setServerHost] = useState(DEFAULT_DEV_HOST);
   const [serverPort, setServerPort] = useState('8080');
   const [backendPort, setBackendPort] = useState('8001');
 
@@ -112,14 +128,22 @@ export default function App() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [webViewError, setWebViewError] = useState(null);
-  const [customHostInput, setCustomHostInput] = useState(DEFAULT_HOST);
+  const [customHostInput, setCustomHostInput] = useState(DEFAULT_LOCAL_WEB_URL);
 
   const webViewRef = useRef(null);
   const notificationListener = useRef();
   const responseListener = useRef();
 
-  const webAppUrl = `http://${serverHost}:${serverPort}`;
-  const backendUrl = `http://${serverHost}:${backendPort}`;
+  // Determine effective Web App URL and Backend API URL
+  const webAppUrl = customServerUrl
+    ? (customServerUrl.startsWith('http') ? customServerUrl : `http://${customServerUrl}:${serverPort}`)
+    : (process.env.EXPO_PUBLIC_WEB_URL || `http://${serverHost}:${serverPort}`);
+
+  const backendUrl = customServerUrl
+    ? (customServerUrl.startsWith('http')
+        ? (customServerUrl.includes(':8080') ? customServerUrl.replace(':8080', `:${backendPort}`) : customServerUrl)
+        : `http://${customServerUrl}:${backendPort}`)
+    : (process.env.EXPO_PUBLIC_BACKEND_URL || `http://${serverHost}:${backendPort}`);
 
   // Start Splash timer: display logo & branding for 1.8 seconds at launch
   useEffect(() => {
@@ -129,12 +153,26 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Check if first-time permissions onboarding has already been completed
+  // Check if first-time permissions onboarding has already been completed & load saved server URL
   useEffect(() => {
     (async () => {
       try {
         const completed = await AsyncStorage.getItem('carecircle_onboarding_completed_v1');
         setIsOnboardingCompleted(completed === 'true');
+
+        const savedUrl = await AsyncStorage.getItem('carecircle_custom_server_url');
+        if (savedUrl) {
+          setCustomServerUrl(savedUrl);
+          setCustomHostInput(savedUrl);
+        }
+
+        const savedHost = await AsyncStorage.getItem('carecircle_server_host');
+        if (savedHost) {
+          setServerHost(savedHost);
+          if (!savedUrl && !isProduction) {
+            setCustomHostInput(savedHost);
+          }
+        }
 
         const savedPerms = await AsyncStorage.getItem('carecircle_device_perms');
         if (savedPerms) {
@@ -172,13 +210,13 @@ export default function App() {
     setIsOnboardingCompleted(true);
   }
 
-  // Continuous vibration loop while alarm is ringing
+  // Continuous vibration loop while alarm is ringing in foreground
   useEffect(() => {
     if (activeAlarmTask && permVibration) {
       const interval = setInterval(() => {
-        Vibration.vibrate([0, 500, 250, 500]);
-      }, 1500);
-      Vibration.vibrate([0, 500, 250, 500]);
+        Vibration.vibrate([0, 600, 300, 600]);
+      }, 1600);
+      Vibration.vibrate([0, 600, 300, 600]);
       return () => {
         clearInterval(interval);
         Vibration.cancel();
@@ -209,8 +247,13 @@ export default function App() {
 
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       const { title, body, data } = notification.request.content;
-      const isUrgent = Boolean(data?.ring_alarm || data?.is_urgent);
+      const isUrgent = Boolean(data?.ring_alarm || data?.ring_sound || data?.is_urgent);
       const isCallAction = data?.action === 'call_parent';
+
+      // Always trigger immediate hardware vibration when notification arrives with screen on
+      try {
+        Vibration.vibrate([0, 800, 400, 800]);
+      } catch (e) {}
 
       const entry = {
         id: String(Date.now()),
@@ -224,8 +267,13 @@ export default function App() {
       };
       setNotificationHistory((prev) => [entry, ...prev]);
 
-      // Pop native full-screen alarm modal with vibration loop
+      // Pop native full-screen alarm modal with ringtone and vibration loop
       if (isUrgent || isCallAction) {
+        if (permRingtone) {
+          AlarmRingtone?.playAlarm();
+        } else {
+          AlarmRingtone?.wakeScreen();
+        }
         setActiveAlarmTask({
           title: title || (isCallAction ? `Call ${data?.parent_name || 'Parent'} Alarm` : 'Urgent Care Alarm'),
           body: body || '',
@@ -242,7 +290,7 @@ export default function App() {
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const { title, body, data } = response.notification.request.content;
-      const isUrgent = Boolean(data?.ring_alarm || data?.is_urgent);
+      const isUrgent = Boolean(data?.ring_alarm || data?.ring_sound || data?.is_urgent);
       const isCallAction = data?.action === 'call_parent';
 
       if (isUrgent || isCallAction) {
@@ -260,9 +308,29 @@ export default function App() {
       }
     });
 
+    // Native Alarm Broadcast Event Listener (Fires when exact native alarm triggers)
+    let nativeAlarmSub = null;
+    if (alarmEmitter) {
+      try {
+        nativeAlarmSub = alarmEmitter.addListener('CareCircleAlarmTriggered', (data) => {
+          setActiveAlarmTask({
+            title: `Alarm: Time for ${data?.title || 'Care Routine'}!`,
+            body: data?.body || 'Scheduled care action is due now.',
+            taskId: data?.taskId || '1',
+            taskTitle: data?.title || 'Care Routine',
+            category: 'Care Routine',
+            isCallAction: false,
+          });
+        });
+      } catch (e) {
+        console.log('Emitter listener note:', e.message);
+      }
+    }
+
     return () => {
       if (notificationListener.current?.remove) notificationListener.current.remove();
       if (responseListener.current?.remove) responseListener.current.remove();
+      if (nativeAlarmSub?.remove) nativeAlarmSub.remove();
     };
   }, []);
 
@@ -333,40 +401,140 @@ export default function App() {
     }
   }
 
-  // Test Ringtone & Vibration Trigger
+  // Dedicated Task Alarm Trigger
+  async function handleTriggerTaskAlarm(task) {
+    try {
+      if (permRingtone) {
+        AlarmRingtone?.playAlarm();
+      } else {
+        AlarmRingtone?.wakeScreen();
+      }
+
+      setActiveAlarmTask({
+        title: task?.title ? `Alarm: Time for ${task.title}!` : 'Urgent Care Alarm',
+        body: task?.body || 'Care task is due now.',
+        taskId: task?.id || '1',
+        taskTitle: task?.title || 'Care Task',
+        category: task?.category || 'Care Routine',
+        isCallAction: false,
+      });
+    } catch (e) {
+      console.log('Task alarm trigger note:', e.message);
+    }
+  }
+
+  const alarmedKeysRef = useRef(new Set());
+  const scheduledAlarmsRef = useRef(new Set());
+
+  // Background active task poller to guarantee alarms fire on time
+  useEffect(() => {
+    let intervalId;
+    async function checkUpcomingTasks() {
+      let parentId = linkedProfile?.parent_profile_id || linkedProfile?.id;
+      if (!parentId) {
+        parentId = '02a21e2e-e30c-46b9-a05b-43837474d1e6';
+      }
+
+      try {
+        const res = await fetch(`${backendUrl}/api/v1/task-instances/parent/${parentId}/today`);
+        if (!res.ok) return;
+        const instances = await res.json();
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const nowMillis = Date.now();
+
+        for (const inst of instances) {
+          const t = inst.task || inst;
+          if (inst.status !== 'pending' && inst.status !== 'snoozed') continue;
+          if (!t.ring_alarm && !t.ringAlarm) continue;
+
+          const timeStr = t.scheduled_time || t.time;
+          if (!timeStr) continue;
+
+          let startM = null;
+          const match = String(timeStr).match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (match) {
+            let h = parseInt(match[1], 10);
+            const m = parseInt(match[2], 10);
+            const ampm = match[3]?.toUpperCase();
+            if (ampm === 'PM' && h < 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            startM = h * 60 + m;
+          }
+
+          if (startM !== null) {
+            // Schedule exact native OS alarm with AlarmManager so it wakes the phone even when app is closed / cleared from tabs
+            const targetDate = new Date();
+            targetDate.setHours(Math.floor(startM / 60), startM % 60, 0, 0);
+            const baseTrigger = targetDate.getTime();
+
+            // 1. Exact start of slot (0 min)
+            if (baseTrigger > nowMillis) {
+              const schedKey = `sched-${inst.id || t.id}-${startM}-0`;
+              if (!scheduledAlarmsRef.current.has(schedKey)) {
+                scheduledAlarmsRef.current.add(schedKey);
+                AlarmRingtone?.scheduleExactAlarm(
+                  String(inst.id || t.id),
+                  t.title || 'Care Reminder',
+                  t.detail || t.notes || `Time for ${t.title}`,
+                  baseTrigger
+                );
+              }
+            }
+
+            // 2. Escalation alarm (+15 min) if not completed
+            const trigger15 = baseTrigger + 15 * 60 * 1000;
+            if (trigger15 > nowMillis) {
+              const schedKey15 = `sched-${inst.id || t.id}-${startM}-15`;
+              if (!scheduledAlarmsRef.current.has(schedKey15)) {
+                scheduledAlarmsRef.current.add(schedKey15);
+                AlarmRingtone?.scheduleExactAlarm(
+                  `${inst.id || t.id}_15`,
+                  `Reminder: ${t.title || 'Care Task'}`,
+                  `Time for ${t.title || 'care task'}. Please complete or snooze.`,
+                  trigger15
+                );
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Ignored
+      }
+    }
+
+    intervalId = setInterval(checkUpcomingTasks, 5000);
+    checkUpcomingTasks();
+    return () => clearInterval(intervalId);
+  }, [linkedProfile, backendUrl, permRingtone]);
+
+  // Test Ringtone & Vibration Trigger: fires physical vibration, notification sound, and alarm modal
   async function handleTriggerTestAlarm() {
     try {
-      if (permNotifications) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Test Care Alarm (Ringtone & Vibration)',
-            body: 'This is a test of your device ringtone & vibration settings.',
-            sound: permRingtone ? 'default' : undefined,
-            data: {
-              ring_alarm: permVibration,
-              ring_sound: permRingtone,
-              is_urgent: true,
-            },
-            channelId: 'urgent_alarm_v2',
-          },
-          trigger: null,
-        });
+      // Native AlarmService handles single continuous sound and vibration cleanly
+      if (permRingtone) {
+        AlarmRingtone?.playAlarm();
+      } else {
+        AlarmRingtone?.wakeScreen();
       }
+
+      // Full-screen active alarm modal
       setActiveAlarmTask({
-        title: 'Test Care Alarm',
-        body: 'Testing phone default ringtone and vibration. Tap Dismiss to stop.',
+        title: 'Care Alert Test',
+        body: 'Phone is ringing with your default phone ringtone and vibration. Tap Dismiss to stop.',
         taskId: null,
-        taskTitle: 'Medication Alert Test',
+        taskTitle: 'Ringtone & Vibration Test',
         category: 'Test Alert',
         isCallAction: false,
       });
     } catch (e) {
       console.log('Test alarm note:', e.message);
+      Vibration.vibrate([0, 800, 400, 800]);
       setActiveAlarmTask({
-        title: 'Test Care Alarm',
-        body: 'Testing alert. Tap Dismiss to stop.',
+        title: 'Care Alert Test',
+        body: 'Vibration alert is active. Tap Dismiss to stop.',
         taskId: null,
-        taskTitle: 'Medication Alert Test',
+        taskTitle: 'Ringtone & Vibration Test',
         category: 'Test Alert',
         isCallAction: false,
       });
@@ -378,17 +546,21 @@ export default function App() {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'DEVICE_LINK') {
-        // Automatically link this physical device to the authenticated parent or child
         setLinkedProfile(data);
         AsyncStorage.setItem('carecircle_linked_profile', JSON.stringify(data)).catch(() => {});
         if (expoPushToken) {
           registerWithBackend(expoPushToken, data);
         }
       } else if (data.type === 'DEVICE_UNLINK') {
-        // User logged out or disconnected circle: completely unbind and deactivate token
         setLinkedProfile(null);
         setIsRegistered(false);
         AsyncStorage.removeItem('carecircle_linked_profile').catch(() => {});
+        // Cancel all pending native hardware alarms and current audio
+        AlarmRingtone?.cancelAllScheduledAlarms();
+        AlarmRingtone?.stopAlarm();
+        setActiveAlarmTask(null);
+        Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+        scheduledAlarmsRef.current = new Set();
         if (expoPushToken) {
           fetch(`${backendUrl}/api/v1/devices/unregister`, {
             method: 'POST',
@@ -400,6 +572,61 @@ export default function App() {
         handleCallParent(data.phone, data.parent_name);
       } else if (data.type === 'TEST_ALARM') {
         handleTriggerTestAlarm();
+      } else if (data.type === 'TASK_ALARM') {
+        handleTriggerTaskAlarm(data.task);
+      } else if (data.type === 'CANCEL_ALARM') {
+        const id = String(data.taskId || '');
+        if (id) {
+          AlarmRingtone?.cancelAlarm(id);
+          AlarmRingtone?.cancelAlarm(`${id}_15`);
+          AlarmRingtone?.cancelAlarm(`${id}_30`);
+        }
+        AlarmRingtone?.stopAlarm();
+        setActiveAlarmTask(null);
+      } else if (data.type === 'SYNC_TASKS') {
+        if (data.parentId && (!linkedProfile || !linkedProfile.parent_profile_id)) {
+          const prof = { parent_profile_id: data.parentId, role: 'parent' };
+          setLinkedProfile(prof);
+          AsyncStorage.setItem('carecircle_linked_profile', JSON.stringify(prof)).catch(() => {});
+        }
+        if (Array.isArray(data.tasks)) {
+          const nowMillis = Date.now();
+          for (const item of data.tasks) {
+            const t = item.task || item;
+            if (item.status !== 'pending' && item.status !== 'snoozed') continue;
+            if (!t.ring_alarm && !t.ringAlarm) continue;
+            const timeStr = t.scheduled_time || t.time;
+            if (!timeStr) continue;
+            const match = String(timeStr).match(/(\d+):(\d+)\s*(AM|PM)?/i);
+            if (match) {
+              let h = parseInt(match[1], 10);
+              const m = parseInt(match[2], 10);
+              const ampm = match[3]?.toUpperCase();
+              if (ampm === 'PM' && h < 12) h += 12;
+              if (ampm === 'AM' && h === 12) h = 0;
+              const targetDate = new Date();
+              targetDate.setHours(h, m, 0, 0);
+              const baseTrigger = targetDate.getTime();
+              if (baseTrigger > nowMillis) {
+                AlarmRingtone?.scheduleExactAlarm(
+                  String(item.id || t.id),
+                  t.title || 'Care Reminder',
+                  t.detail || t.notes || `Time for ${t.title}`,
+                  baseTrigger
+                );
+              }
+              const trigger15 = baseTrigger + 15 * 60 * 1000;
+              if (trigger15 > nowMillis) {
+                AlarmRingtone?.scheduleExactAlarm(
+                  `${item.id || t.id}_15`,
+                  `Reminder: ${t.title || 'Care Task'}`,
+                  `Time for ${t.title || 'care task'}. Please complete or snooze.`,
+                  trigger15
+                );
+              }
+            }
+          }
+        }
       }
     } catch (err) {
       // Ignored if non-json
@@ -409,11 +636,15 @@ export default function App() {
   // Complete task from the full-screen native alarm modal
   async function handleCompleteFromAlarm() {
     Vibration.cancel();
+    AlarmRingtone?.stopAlarm();
     const task = activeAlarmTask;
     setActiveAlarmTask(null);
 
     if (task?.taskId) {
       try {
+        AlarmRingtone?.cancelAlarm(String(task.taskId));
+        AlarmRingtone?.cancelAlarm(`${task.taskId}_15`);
+        AlarmRingtone?.cancelAlarm(`${task.taskId}_30`);
         await fetch(`${backendUrl}/api/v1/tasks/${task.taskId}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -431,11 +662,13 @@ export default function App() {
 
   function handleDismissAlarm() {
     Vibration.cancel();
+    AlarmRingtone?.stopAlarm();
     setActiveAlarmTask(null);
   }
 
   function handleCallParent(phone, parentName) {
     Vibration.cancel();
+    AlarmRingtone?.stopAlarm();
     setActiveAlarmTask(null);
     const sanitized = phone ? String(phone).replace(/[^\d+*#]/g, '') : '';
     if (!sanitized) {
@@ -484,6 +717,19 @@ export default function App() {
         pushToken: '${expoPushToken}',
       };
       
+      // Auto-scroll focused inputs into clear view above virtual keyboard
+      document.addEventListener('focusin', function(e) {
+        var el = e.target;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
+          setTimeout(function() {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 150);
+          setTimeout(function() {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 450);
+        }
+      }, true);
+
       // Auto-report existing session on boot
       try {
         var parentRaw = localStorage.getItem('carecircle_parent_profile');
@@ -541,7 +787,14 @@ export default function App() {
     return (
       <SafeAreaView style={styles.onboardingSafeArea}>
         <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
-        <ScrollView contentContainerStyle={styles.onboardingScroll}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.onboardingScroll, { flexGrow: 1 }]}
+          showsVerticalScrollIndicator={true}
+          bounces={true}
+          alwaysBounceVertical={true}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.onboardingHeader}>
             <Image
               source={require('./assets/icon.png')}
@@ -581,7 +834,7 @@ export default function App() {
             <View style={styles.permRow}>
               <View style={styles.permInfo}>
                 <Text style={styles.permLabel}>Phone Ringtone Alert</Text>
-                <Text style={styles.permSub}>Ring your phone using native default ringtone for critical tasks.</Text>
+                <Text style={styles.permSub}>Ring your phone using default ringtone even when app is closed.</Text>
               </View>
               <Switch
                 value={permRingtone}
@@ -646,6 +899,19 @@ export default function App() {
           >
             <Text style={styles.onboardingPrimaryBtnText}>Allow Permissions & Get Started</Text>
           </TouchableOpacity>
+
+          {/* Open Phone Settings Button */}
+          <TouchableOpacity
+            style={styles.onboardingSettingsLinkBtn}
+            onPress={() => Linking.openSettings()}
+          >
+            <Text style={styles.onboardingSettingsLinkBtnText}>Open Phone Settings</Text>
+          </TouchableOpacity>
+
+          {/* Mandatory User Requirement Note */}
+          <Text style={styles.onboardingCheckNote}>
+            Check in phone settings if all permissions are turned on after this
+          </Text>
         </ScrollView>
       </SafeAreaView>
     );
@@ -654,51 +920,15 @@ export default function App() {
   // 3. Main Application Flow
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#1C355E" />
-
-      {/* Top Native Control Pill */}
-      <View style={styles.topBar}>
-        <View style={styles.statusGroup}>
-          <View style={[styles.statusDot, { backgroundColor: isRegistered ? '#10B981' : '#F59E0B' }]} />
-          <Text style={styles.statusLabel} numberOfLines={1}>
-            {linkedProfile
-              ? `${linkedProfile.parent_name || linkedProfile.user_name || 'Linked Profile'}`
-              : (isRegistered ? 'CareCircle Native • Alarms Live' : 'Connecting to Server...')}
-          </Text>
-        </View>
-
-        <View style={styles.topActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => setShowHistoryModal(true)}
-          >
-            <Text style={styles.iconButtonText}>Alerts</Text>
-            {notificationHistory.length > 0 && (
-              <View style={styles.badgeCount}>
-                <Text style={styles.badgeCountText}>{notificationHistory.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => {
-              setCustomHostInput(serverHost);
-              setShowConfigModal(true);
-            }}
-          >
-            <Text style={styles.iconButtonText}>Settings</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
       {/* Main Standalone App Screen: Native WebView rendering CareCircle Platform */}
       <View style={styles.webViewContainer}>
         {webViewError ? (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>Unable to Reach CareCircle Server</Text>
+            <Text style={styles.errorTitle}>Unable to Reach CareCircle</Text>
             <Text style={styles.errorBody}>
-              Could not connect to {webAppUrl}. Ensure your phone and Mac are connected to the same Wi-Fi network.
+              Could not connect to {webAppUrl}. Please check your internet connection and tap retry.
             </Text>
             <TouchableOpacity
               style={styles.retryButton}
@@ -711,9 +941,12 @@ export default function App() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.changeIpButton}
-              onPress={() => setShowConfigModal(true)}
+              onPress={() => {
+                setCustomHostInput(customServerUrl || (isProduction ? DEFAULT_PROD_WEB_URL : serverHost));
+                setShowConfigModal(true);
+              }}
             >
-              <Text style={styles.changeIpButtonText}>Configure Server IP ({serverHost})</Text>
+              <Text style={styles.changeIpButtonText}>Server Settings</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -752,9 +985,14 @@ export default function App() {
               </View>
             )}
             style={styles.webView}
+            containerStyle={{ flex: 1 }}
+            nestedScrollEnabled={true}
+            overScrollMode="always"
+            scrollEnabled={true}
             allowsInlineMediaPlayback={true}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+            showsVerticalScrollIndicator={true}
           />
         )}
       </View>
@@ -766,8 +1004,18 @@ export default function App() {
         transparent={true}
         onRequestClose={handleDismissAlarm}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.alarmModalCard}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={handleDismissAlarm}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.alarmModalCard}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+            }}
+          >
             <View style={styles.alarmIconCircle}>
               <Text style={styles.alarmBadgeText}>
                 {activeAlarmTask?.isCallAction ? 'CALL' : 'ALERT'}
@@ -826,8 +1074,8 @@ export default function App() {
             >
               <Text style={styles.alarmDismissButtonText}>Dismiss Alarm</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Settings & Permissions Modal */}
@@ -837,8 +1085,18 @@ export default function App() {
         transparent={true}
         onRequestClose={() => setShowConfigModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.configModalCard, { maxHeight: '90%' }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowConfigModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.configModalCard, { maxHeight: '90%' }]}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+            }}
+          >
             <View style={styles.historyHeader}>
               <Text style={styles.configModalTitle}>Settings & Permissions</Text>
               <TouchableOpacity onPress={() => setShowConfigModal(false)}>
@@ -871,7 +1129,7 @@ export default function App() {
                 <View style={styles.permRow}>
                   <View style={styles.permInfo}>
                     <Text style={styles.permLabel}>Phone Ringtone Alert</Text>
-                    <Text style={styles.permSub}>Ring phone using default native ringtone.</Text>
+                    <Text style={styles.permSub}>Ring phone using default alarm tone.</Text>
                   </View>
                   <Switch
                     value={permRingtone}
@@ -928,37 +1186,57 @@ export default function App() {
                 <Text style={styles.testAlertBtnText}>Test Ringtone & Vibration</Text>
               </TouchableOpacity>
 
-              {/* Server Connection Section */}
-              <Text style={[styles.settingsSectionHeader, { marginTop: 20 }]}>SERVER CONNECTION</Text>
-              <Text style={styles.configModalSub}>
-                Enter your Mac's Wi-Fi IP address so your phone loads the live platform and receives real alarms.
+              <TouchableOpacity
+                style={styles.openSettingsBtnInline}
+                onPress={() => Linking.openSettings()}
+              >
+                <Text style={styles.openSettingsBtnInlineText}>Open Phone Settings</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.settingsCheckNote}>
+                Check in phone settings if all permissions are turned on after this
               </Text>
 
-              <Text style={styles.inputLabel}>Mac Wi-Fi IP Address:</Text>
+              {/* Server Connection Section */}
+              <Text style={[styles.settingsSectionHeader, { marginTop: 18 }]}>SERVER CONNECTION</Text>
+              <Text style={styles.configModalSub}>
+                Configure the CareCircle server URL for cloud production or local testing.
+              </Text>
+
+              <Text style={styles.inputLabel}>Server URL or Host:</Text>
               <TextInput
                 style={styles.textInput}
                 value={customHostInput}
                 onChangeText={setCustomHostInput}
-                placeholder="e.g. 172.16.36.36"
+                placeholder={isProduction ? DEFAULT_PROD_WEB_URL : DEFAULT_DEV_HOST}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
 
               <TouchableOpacity
                 style={styles.configSaveBtnFull}
-                onPress={() => {
+                onPress={async () => {
                   const cleaned = customHostInput.trim();
                   if (cleaned) {
-                    setServerHost(cleaned);
+                    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+                      setCustomServerUrl(cleaned);
+                      await AsyncStorage.setItem('carecircle_custom_server_url', cleaned);
+                    } else {
+                      setServerHost(cleaned);
+                      await AsyncStorage.setItem('carecircle_server_host', cleaned);
+                    }
                     setWebViewError(null);
                     setShowConfigModal(false);
                     if (expoPushToken) {
                       registerWithBackend(expoPushToken, linkedProfile);
                     }
+                    if (webViewRef.current) {
+                      webViewRef.current.reload();
+                    }
                   }
                 }}
               >
-                <Text style={styles.configSaveBtnText}>Save IP & Reconnect</Text>
+                <Text style={styles.configSaveBtnText}>Save &amp; Reconnect</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -971,8 +1249,8 @@ export default function App() {
                 <Text style={styles.resetOnboardingBtnText}>View First-Time Permissions Screen</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Notifications & Alarms Feed Modal */}
@@ -982,8 +1260,18 @@ export default function App() {
         transparent={true}
         onRequestClose={() => setShowHistoryModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.configModalCard, { maxHeight: '80%' }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowHistoryModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.configModalCard, { maxHeight: '80%' }]}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+            }}
+          >
             <View style={styles.historyHeader}>
               <Text style={styles.configModalTitle}>Alarms & Alerts Stream</Text>
               <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
@@ -1008,8 +1296,8 @@ export default function App() {
                 ))
               )}
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -1088,10 +1376,11 @@ const styles = StyleSheet.create({
   onboardingSafeArea: {
     flex: 1,
     backgroundColor: '#0F172A',
+    paddingTop: Platform.OS === 'android' ? Math.max(StatusBar.currentHeight || 0, 36) : 0,
   },
   onboardingScroll: {
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 60,
   },
   onboardingHeader: {
     alignItems: 'center',
@@ -1196,27 +1485,41 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 6,
+    marginBottom: 10,
   },
   onboardingPrimaryBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
   },
+  onboardingSettingsLinkBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#475569',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  onboardingSettingsLinkBtnText: {
+    color: '#93C5FD',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  onboardingCheckNote: {
+    fontSize: 12,
+    color: '#FCD34D',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 4,
+    fontWeight: '600',
+  },
 
   // Main App Styles
   safeArea: {
     flex: 1,
-    backgroundColor: '#1C355E',
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1C355E',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2B4A78',
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? Math.max(StatusBar.currentHeight || 0, 36) : 0,
   },
   statusGroup: {
     flexDirection: 'row',
@@ -1484,6 +1787,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  openSettingsBtnInline: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  openSettingsBtnInlineText: {
+    color: '#1C355E',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  settingsCheckNote: {
+    fontSize: 11,
+    color: '#B45309',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 12,
+    fontWeight: '600',
   },
   configModalSub: {
     fontSize: 13,

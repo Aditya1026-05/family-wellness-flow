@@ -194,8 +194,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default" if is_sound else None,
-                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
+                sound="default",
+                channel_id="carecircle_urgent_alarm_v14" if (is_alarm or is_sound) else "carecircle_reminders_v3",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -251,8 +251,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default" if is_sound else None,
-                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
+                sound="default",
+                channel_id="carecircle_urgent_alarm_v14" if (is_alarm or is_sound) else "carecircle_reminders_v3",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -308,8 +308,8 @@ async def poll_and_dispatch_reminders(
                     "action": "complete_task",
                 },
                 priority="high",
-                sound="default" if is_sound else None,
-                channel_id="urgent_alarm_v2" if (is_alarm or is_sound) else "carecircle-reminders",
+                sound="default",
+                channel_id="carecircle_urgent_alarm_v14" if (is_alarm or is_sound) else "carecircle_reminders_v3",
             )
 
             await dispatcher.dispatch_to_recipient(
@@ -373,7 +373,7 @@ async def poll_and_dispatch_reminders(
                 },
                 priority="high",
                 sound="default",
-                channel_id="urgent_alarm_v2" if is_alarm else "carecircle-reminders",
+                channel_id="carecircle_urgent_alarm_v14" if is_alarm else "carecircle_reminders_v3",
             )
             await dispatcher.dispatch_to_recipient(
                 db=db,
@@ -436,7 +436,7 @@ async def poll_and_dispatch_reminders(
                     },
                     priority="high",
                     sound="default",
-                    channel_id="urgent_alarm_v2",
+                    channel_id="carecircle_urgent_alarm_v14",
                 )
 
                 await dispatcher.dispatch_to_recipient(

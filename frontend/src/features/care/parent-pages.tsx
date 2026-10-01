@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, createContext, useContext, useRef, useEffect } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Camera, Check, ChevronRight, Clock3, Heart, History, Home, ScanLine, CalendarDays, ArrowLeft, HeartHandshake, CheckCircle2, Pause, Moon, Sun, Coffee, Lock, Settings, Volume2, Vibrate, ShieldCheck } from 'lucide-react';
@@ -16,12 +16,18 @@ import { Brand, CategoryIcon, EmptyState, StatusBadge } from './components';
 import { useCareStore } from './store';
 import { defaultHistory } from './data';
 import { cn } from '@/lib/utils';
-import { api, getCurrentParentProfile } from '@/lib/api';
+import { api, getCurrentParentProfile, syncNativeDeviceLink } from '@/lib/api';
+import { triggerDeviceTestAlert } from '@/lib/alerts';
 import { AdherenceTracker } from './adherence-view';
+
+export const ParentSettingsContext = createContext<{ openSettings: () => void }>({
+  openSettings: () => {},
+});
 
 export function ParentShell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: s => s.location.pathname });
   const [showSettings, setShowSettings] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const links = [
     { to: '/parent/home', label: 'Next', icon: Clock3 },
     { to: '/parent/today', label: 'Today', icon: CalendarDays },
@@ -29,142 +35,164 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
   ] as const;
 
   return (
-    <div className="min-h-[100dvh] bg-[#f4f8fc] pb-28 text-slate-800 dark:bg-background dark:text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-[#f4f8fc]/90 px-6 py-4 backdrop-blur dark:bg-background/90">
-        <div className="mx-auto flex max-w-2xl items-center justify-between">
-          <Brand />
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-primary dark:bg-blue-950 dark:text-blue-300">
-              Parent view
-            </span>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
-            >
-              <Settings className="size-3.5" /> Settings
-            </button>
-            <button
-              onClick={() => {
-                api.auth.disconnectParent();
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
-            >
-              <ArrowLeft className="size-3.5" /> Exit
-            </button>
+    <ParentSettingsContext.Provider value={{ openSettings: () => setShowSettings(true) }}>
+      <div className="min-h-[100dvh] bg-[#f4f8fc] pb-28 text-slate-800 dark:bg-background dark:text-foreground">
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-[#f4f8fc]/90 px-6 py-4 backdrop-blur dark:bg-background/90">
+          <div className="mx-auto flex max-w-2xl items-center justify-between">
+            <Brand />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
+              >
+                <Settings className="size-3.5" /> Settings
+              </button>
+              <button
+                onClick={() => {
+                  api.auth.disconnectParent();
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:bg-muted"
+              >
+                <ArrowLeft className="size-3.5" /> Exit
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-2xl px-6 pt-6 sm:pt-10">
-        {children}
-      </main>
+        <main className="mx-auto max-w-2xl px-6 pt-6 sm:pt-10">
+          {children}
+        </main>
 
-      <nav aria-label="Parent navigation" className="fixed inset-x-0 bottom-3 z-30 mx-auto max-w-sm px-4">
-        <div className="grid grid-cols-3 rounded-2xl border border-border/80 bg-card/95 p-1 shadow-lg shadow-slate-300/40 backdrop-blur-md dark:shadow-black/50">
-          {links.map(l => {
-            const isActive = path === l.to;
-            return (
-              <Link
-                key={l.to}
-                to={l.to}
+        <nav aria-label="Parent navigation" className="fixed inset-x-0 bottom-3 z-30 mx-auto max-w-sm px-4">
+          <div className="grid grid-cols-3 rounded-2xl border border-border/80 bg-card/95 p-1 shadow-lg shadow-slate-300/40 backdrop-blur-md dark:shadow-black/50">
+            {links.map(l => {
+              const isActive = path === l.to;
+              return (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[11px] font-semibold transition',
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <l.icon className="size-4 shrink-0 stroke-[1.8]" />
+                  {l.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Parent Settings & Permissions Modal */}
+        <Dialog open={showSettings} onOpenChange={setShowSettings}>
+          <DialogContent className="sm:max-w-md p-5 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Alert & Device Permissions</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Configure how alarms, ringtones, and reminders behave on this phone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Bell className="size-4 text-primary" /> Task Reminders
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Show notifications when daily care routines are due.
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Volume2 className="size-4 text-primary" /> Phone Ringtone
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Rings phone out loud using your phone's default ringtone.
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+
+              <div className="rounded-xl border border-blue-200/80 bg-blue-50/70 p-3 text-xs text-blue-950 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200 space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <Bell className="size-3.5 text-primary" /> Phone Default Ringtone &amp; Volume
+                </p>
+                <p className="text-[11px] leading-relaxed text-blue-900 dark:text-blue-300">
+                  Alarms play using your phone's default ringtone and volume configured in your device's <strong>Settings &gt; Sound &amp; Vibration</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Vibrate className="size-4 text-primary" /> Vibration Alert
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Vibrates phone continuously until task is acknowledged.
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <ShieldCheck className="size-4 text-primary" /> Lockscreen Priority
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Shows full alarm card directly on lockscreen.
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+
+              <Button
+                type="button"
+                variant={isTesting ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIsTesting(true);
+                  triggerDeviceTestAlert();
+                  setTimeout(() => setIsTesting(false), 3800);
+                }}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[11px] font-semibold transition',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
+                  "w-full rounded-xl text-xs font-semibold gap-2 h-11 mt-2 transition-all cursor-pointer",
+                  isTesting && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-md animate-pulse"
                 )}
               >
-                <l.icon className="size-4 shrink-0 stroke-[1.8]" />
-                {l.label}
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+                {isTesting ? (
+                  <>
+                    <Volume2 className="size-4 animate-bounce" />
+                    <span>Ringing &amp; Vibrating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Bell className="size-4" />
+                    <span>Test Ringtone &amp; Vibration</span>
+                  </>
+                )}
+              </Button>
 
-      {/* Parent Settings & Permissions Modal */}
-      <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent className="sm:max-w-md p-5 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Alert & Device Permissions</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Configure how alarms, ringtones, and reminders behave on this phone.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
-              <div className="space-y-0.5 pr-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Bell className="size-4 text-primary" /> Task Reminders
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Show notifications when daily care routines are due.
-                </p>
+              {/* Registered Profile Row */}
+              <div className="flex items-center justify-between py-2 text-xs border-t border-border/60 pt-3 mt-3">
+                <span className="text-muted-foreground font-medium">Registered profile:</span>
+                <span className="font-semibold text-foreground">
+                  {getCurrentParentProfile()?.parent_name || getCurrentParentProfile()?.name || 'Registered Parent'}
+                </span>
               </div>
-              <Switch defaultChecked />
             </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
-              <div className="space-y-0.5 pr-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Volume2 className="size-4 text-primary" /> Phone Ringtone
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Rings phone out loud using your native ringtone for urgent tasks.
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
-              <div className="space-y-0.5 pr-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Vibrate className="size-4 text-primary" /> Vibration Alert
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Vibrates phone continuously until task is acknowledged.
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
-              <div className="space-y-0.5 pr-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <ShieldCheck className="size-4 text-primary" /> Lockscreen Priority
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Shows full alarm card directly on lockscreen.
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-                  try {
-                    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'TEST_ALARM' }));
-                  } catch {}
-                } else {
-                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                    navigator.vibrate([0, 500, 200, 500]);
-                  }
-                  alert('Alert & Vibration Test: Ringtone and vibration triggers successfully.');
-                }
-              }}
-              className="w-full rounded-xl text-xs font-semibold gap-1.5 h-10 mt-2"
-            >
-              <Bell className="size-4" /> Test Ringtone & Vibration
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ParentSettingsContext.Provider>
   );
 }
 
@@ -191,7 +219,7 @@ export function ScanPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#f4f8fc] dark:bg-background">
+    <div className="min-h-[100dvh] bg-[#f4f8fc] dark:bg-background pb-44">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
         <Brand />
         <Link to="/" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
@@ -199,7 +227,7 @@ export function ScanPage() {
         </Link>
       </header>
 
-      <main className="mx-auto max-w-md px-6 py-8 text-center sm:py-12">
+      <main className="mx-auto max-w-md px-6 py-8 pb-44 text-center sm:py-12">
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-100 text-primary dark:bg-blue-950/40">
           <ScanLine className="size-7" />
         </div>
@@ -310,6 +338,7 @@ function parseTimeStringToMinutes(timeStr?: string): number | null {
 }
 
 export function ParentHomePage() {
+  const { openSettings } = useContext(ParentSettingsContext);
   const profile = getCurrentParentProfile();
   if (!profile) {
     return (
@@ -329,15 +358,47 @@ export function ParentHomePage() {
   const queryClient = useQueryClient();
   const [snoozedId, setSnoozedId] = useState<string | null>(null);
 
+  // Live ticking clock to evaluate upcoming and active tasks dynamically every second
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Sync profile and active tasks to native companion shell
+  useEffect(() => {
+    syncNativeDeviceLink();
+  }, [parentId]);
+
   const { data: todayTasks = [] } = useQuery({
     queryKey: ['today-instances', parentId],
     queryFn: () => api.tasks.getTodaySchedule(parentId),
     enabled: !!parentId,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView && todayTasks.length > 0) {
+      try {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'SYNC_TASKS',
+            parentId,
+            tasks: todayTasks,
+          })
+        );
+      } catch {}
+    }
+  }, [todayTasks, parentId]);
 
   const complete = async (taskOrInstId: string) => {
     try {
+      if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'CANCEL_ALARM',
+          taskId: taskOrInstId,
+        }));
+      }
       await api.tasks.complete(taskOrInstId, { parentIds: [parentId] });
     } catch {}
     queryClient.invalidateQueries({ queryKey: ['today-instances', parentId] });
@@ -354,9 +415,8 @@ export function ParentHomePage() {
     queryClient.invalidateQueries({ queryKey: ['adherence', parentId] });
   };
 
-  const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinutes = currentHour * 60 + now.getMinutes();
+  const currentHour = currentTime.getHours();
+  const currentMinutes = currentHour * 60 + currentTime.getMinutes();
 
   let greeting = `Good morning, ${parentName}`;
   let GreetingIcon = Sun;

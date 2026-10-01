@@ -46,3 +46,4 @@ htmlcov/
 backend/.env
 *.apk
 carecircle-v1.0.0.apk
+*.db

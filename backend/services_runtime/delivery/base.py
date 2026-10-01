@@ -9,7 +9,7 @@ class PushPayload(BaseModel):
     sound: Optional[str] = "default"
     badge: Optional[int] = None
     priority: str = "high"  # default, normal, high
-    channel_id: Optional[str] = "carecircle-reminders"
+    channel_id: Optional[str] = "carecircle_reminders_v3"
 
 class DeliveryResult(BaseModel):
     token: str

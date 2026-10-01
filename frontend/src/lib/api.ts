@@ -282,6 +282,8 @@ export const api = {
       notes?: string;
       ring_alarm?: boolean;
       ringAlarm?: boolean;
+      ring_sound?: boolean;
+      ringSound?: boolean;
     }) =>
       request<CareTask>('/tasks', {
         method: 'POST',
@@ -297,6 +299,8 @@ export const api = {
           detail: data.notes,
           ring_alarm: Boolean(data.ring_alarm ?? data.ringAlarm),
           ringAlarm: Boolean(data.ring_alarm ?? data.ringAlarm),
+          ring_sound: Boolean(data.ring_sound ?? data.ringSound),
+          ringSound: Boolean(data.ring_sound ?? data.ringSound),
         }),
       }),
     update: (id: string, data: {
@@ -310,6 +314,8 @@ export const api = {
       notes?: string;
       ring_alarm?: boolean;
       ringAlarm?: boolean;
+      ring_sound?: boolean;
+      ringSound?: boolean;
     }) =>
       request<CareTask>(`/tasks/${id}`, {
         method: 'PUT',
@@ -325,6 +331,8 @@ export const api = {
           detail: data.notes,
           ring_alarm: data.ring_alarm !== undefined ? data.ring_alarm : data.ringAlarm,
           ringAlarm: data.ringAlarm !== undefined ? data.ringAlarm : data.ring_alarm,
+          ring_sound: data.ring_sound !== undefined ? data.ring_sound : data.ringSound,
+          ringSound: data.ringSound !== undefined ? data.ringSound : data.ring_sound,
         }),
       }),
     delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),

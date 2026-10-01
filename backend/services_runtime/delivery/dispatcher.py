@@ -60,6 +60,12 @@ class NotificationDispatcher:
         tokens = [d.token for d in devices]
         device_map = {d.token: d for d in devices}
 
+        # Release database locks before awaiting external HTTP network calls
+        try:
+            db.commit()
+        except Exception:
+            pass
+
         results = await self.provider.send_batch(tokens, payload)
         now = datetime.now(timezone.utc)
 

@@ -15,6 +15,7 @@ import { history, mockApi, type Category, type CareTask, type Parent } from './d
 import { EditTaskDialog, EditParentDialog, ConfirmDeleteDialog, ParentInviteModal, CompleteTaskDialog } from './modals';
 import { AdherenceTracker } from './adherence-view';
 import { api, getCurrentUser } from '@/lib/api';
+import { triggerDeviceTestAlert } from '@/lib/alerts';
 import { cn, copyToClipboard, downloadSvgAsPng, shareOrCopyInvite } from '@/lib/utils';
 
 export function DashboardPage() {
@@ -959,6 +960,7 @@ export function AlertsPage() {
 
 export function ProfilePage() {
   const [dark, setDark] = useState(false);
+  const [isTestingAlert, setIsTestingAlert] = useState(false);
   const parents = useCareStore(s => s.parents);
   const currentUser = getCurrentUser();
   const fullName = currentUser?.full_name || (currentUser?.email ? currentUser.email.split('@')[0] : 'Family Admin');
@@ -1007,38 +1009,56 @@ export function ProfilePage() {
               <Switch defaultChecked aria-label="Toggle lockscreen"/>
             </SettingsRow>
           </div>
+
+          <div className="mt-3 rounded-2xl border border-blue-200/80 bg-blue-50/70 p-3.5 text-xs text-blue-950 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200 space-y-1">
+            <p className="font-bold flex items-center gap-1">
+              <Bell className="size-3.5 text-primary" /> Phone Default Ringtone &amp; Volume
+            </p>
+            <p className="text-[11px] leading-relaxed text-blue-900 dark:text-blue-300">
+              Alarms use your phone's default ringtone and volume set in device <strong>Settings &gt; Sound &amp; Vibration</strong>.
+            </p>
+          </div>
+
           <div className="mt-3">
             <Button
               type="button"
-              variant="outline"
+              variant={isTestingAlert ? "default" : "outline"}
               size="sm"
               onClick={() => {
-                if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
-                  try {
-                    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'TEST_ALARM' }));
-                  } catch {}
-                } else {
-                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                    navigator.vibrate([0, 500, 200, 500]);
-                  }
-                  alert('Alert & Vibration Test: Native alert triggers successfully on your device.');
-                }
+                setIsTestingAlert(true);
+                triggerDeviceTestAlert();
+                setTimeout(() => setIsTestingAlert(false), 3800);
               }}
-              className="w-full rounded-xl text-xs font-semibold gap-1.5 h-9"
+              className={cn(
+                "w-full rounded-xl text-xs font-semibold gap-2 h-10 transition-all cursor-pointer",
+                isTestingAlert && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-md animate-pulse"
+              )}
             >
-              <Bell className="size-3.5" /> Test Ringtone & Vibration
+              {isTestingAlert ? (
+                <>
+                  <Volume2 className="size-4 animate-bounce" />
+                  <span>Ringing &amp; Vibrating...</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="size-3.5" />
+                  <span>Test Ringtone &amp; Vibration</span>
+                </>
+              )}
             </Button>
           </div>
         </section>
         <section>
           <SectionTitle title="Settings"/>
-          <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow">
+          <div className="rounded-2xl border border-card-border bg-card px-5 card-shadow divide-y divide-border/60">
             <SettingsRow icon={Settings} title="Dark mode" detail="Use a darker appearance">
               <Switch checked={dark} onCheckedChange={toggle} aria-label="Dark mode"/>
             </SettingsRow>
             <SettingsRow icon={ShieldCheck} title="Privacy" detail="Your family's care stays in your circle"/>
+            <SettingsRow icon={Users} title="Registered profile" detail={fullName}/>
           </div>
         </section>
+
         <Button variant="outline" asChild className="w-full" onClick={() => { api.auth.logout(); useCareStore.getState().reset(); }}>
           <Link to="/">{currentUser?.email === 'aditya@example.com' ? 'Leave demo' : 'Sign out'}</Link>
         </Button>

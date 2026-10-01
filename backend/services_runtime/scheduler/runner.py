@@ -13,14 +13,24 @@ async def run_reminder_scan():
     with SessionLocal() as db:
         try:
             await poll_and_dispatch_reminders(db)
+            db.commit()
         except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
             logger.error(f"Error during reminder scan job: {e}", exc_info=True)
 
 async def run_escalation_scan():
     with SessionLocal() as db:
         try:
             await evaluate_and_escalate_overdue_tasks(db)
+            db.commit()
         except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
             logger.error(f"Error during escalation scan job: {e}", exc_info=True)
 
 def configure_scheduler() -> AsyncIOScheduler:
@@ -32,6 +42,8 @@ def configure_scheduler() -> AsyncIOScheduler:
         seconds=interval,
         id="carecircle_reminders_poller",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.add_job(
         run_escalation_scan,
@@ -39,6 +51,8 @@ def configure_scheduler() -> AsyncIOScheduler:
         seconds=interval,
         id="carecircle_escalation_poller",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     logger.info(f"Configured APScheduler with {interval}s interval for reminders & escalations.")
     return scheduler

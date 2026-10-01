@@ -11,11 +11,19 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://family-wellness-flow.lovable.app",
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.carecircle.app"
       }
     },
     "production": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://family-wellness-flow.lovable.app",
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.carecircle.app"
       }
     }
   },
