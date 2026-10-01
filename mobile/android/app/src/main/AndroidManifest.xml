@@ -45,6 +45,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="family-wellness-flow-omega.vercel.app" android:pathPrefix="/parent/scan"/>
+        <data android:scheme="https" android:host="family-wellness-flow-omega.vercel.app" android:pathPrefix="/join"/>
         <data android:scheme="https" android:host="carecircle.app" android:pathPrefix="/parent/scan"/>
         <data android:scheme="https" android:host="carecircle.app" android:pathPrefix="/join"/>
       </intent-filter>

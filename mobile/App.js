@@ -97,11 +97,11 @@ async function setupNotificationChannels() {
 // Initialize notification channels on module load
 setupNotificationChannels();
 
-// Endpoints: Local reverse-port forwarded development by default
+// Endpoints: Production Vercel & Render URLs
 const DEFAULT_LOCAL_WEB_URL = 'http://127.0.0.1:8080';
 const DEFAULT_LOCAL_BACKEND_URL = 'http://127.0.0.1:8001';
-const DEFAULT_PROD_WEB_URL = process.env.EXPO_PUBLIC_WEB_URL || DEFAULT_LOCAL_WEB_URL;
-const DEFAULT_PROD_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || DEFAULT_LOCAL_BACKEND_URL;
+const DEFAULT_PROD_WEB_URL = process.env.EXPO_PUBLIC_WEB_URL || 'https://family-wellness-flow-omega.vercel.app';
+const DEFAULT_PROD_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://carecircle-backend-8adq.onrender.com';
 const DEFAULT_DEV_HOST = '127.0.0.1';
 
 export default function App() {
@@ -174,13 +174,13 @@ export default function App() {
   // Determine effective Web App URL and Backend API URL
   const webAppUrl = customServerUrl
     ? (customServerUrl.startsWith('http') ? customServerUrl : `http://${customServerUrl}:${serverPort}`)
-    : (process.env.EXPO_PUBLIC_WEB_URL || `http://${serverHost}:${serverPort}`);
+    : (isProduction ? DEFAULT_PROD_WEB_URL : (process.env.EXPO_PUBLIC_WEB_URL || `http://${serverHost}:${serverPort}`));
 
   const backendUrl = customServerUrl
     ? (customServerUrl.startsWith('http')
         ? (customServerUrl.includes(':8080') ? customServerUrl.replace(':8080', `:${backendPort}`) : customServerUrl)
         : `http://${customServerUrl}:${backendPort}`)
-    : (process.env.EXPO_PUBLIC_BACKEND_URL || `http://${serverHost}:${backendPort}`);
+    : (isProduction ? DEFAULT_PROD_BACKEND_URL : (process.env.EXPO_PUBLIC_BACKEND_URL || `http://${serverHost}:${backendPort}`));
 
   // Start Splash timer: display logo & branding for 1.8 seconds at launch
   useEffect(() => {
