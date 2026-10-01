@@ -1,5 +1,15 @@
+import os
+from zoneinfo import ZoneInfo
 from datetime import datetime, timezone, timedelta
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Any
+
+def get_app_timezone() -> Any:
+    """Returns the application timezone, defaulting to Asia/Kolkata (IST)."""
+    tz_name = os.getenv("APP_TIMEZONE", "Asia/Kolkata")
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        return datetime.now().astimezone().tzinfo or timezone.utc
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -11,17 +21,16 @@ def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
-
 def get_local_now() -> datetime:
-    """Returns current datetime in local timezone."""
-    return datetime.now().astimezone()
+    """Returns current datetime in application timezone."""
+    return datetime.now(get_app_timezone())
 
 def get_today_range() -> Tuple[datetime, datetime]:
     """
     Returns (today_start_utc, today_end_utc) representing the local calendar day (00:00 to 24:00)
     converted to UTC. This ensures that when midnight strikes locally, tasks roll over immediately.
     """
-    local_now = datetime.now().astimezone()
+    local_now = get_local_now()
     local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
     local_end = local_start + timedelta(days=1)
     return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
@@ -30,7 +39,7 @@ def get_today_datetime(hour: int, minute: int) -> datetime:
     """
     Returns a UTC datetime for today at the given (hour, minute) in local calendar day.
     """
-    local_now = datetime.now().astimezone()
+    local_now = get_local_now()
     local_dt = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     return local_dt.astimezone(timezone.utc)
 
@@ -66,7 +75,7 @@ def format_time_12h(hour: int, minute: int) -> str:
 def to_local_datetime(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
-    local_tz = datetime.now().astimezone().tzinfo
+    local_tz = get_app_timezone()
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
     return dt.astimezone(local_tz)
@@ -78,7 +87,7 @@ def format_datetime_time_12h(dt: Optional[datetime]) -> Optional[str]:
     return format_time_12h(local_dt.hour, local_dt.minute)
 
 def format_relative_time(dt: datetime) -> str:
-    local_now = datetime.now().astimezone()
+    local_now = get_local_now()
     local_dt = to_local_datetime(dt)
     if not local_dt:
         return "Unknown"

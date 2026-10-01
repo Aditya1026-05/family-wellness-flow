@@ -369,13 +369,37 @@ class TaskService:
         today_start, today_end = get_today_range()
         now = utcnow()
 
-        instances = db.scalars(
+        raw_instances = db.scalars(
             select(TaskInstance).where(
                 TaskInstance.parent_profile_id == parent_id,
                 TaskInstance.scheduled_for >= today_start,
                 TaskInstance.scheduled_for < today_end,
             ).order_by(TaskInstance.scheduled_for.asc())
         ).all()
+
+        # Deduplicate instances by task_id in case duplicate rows exist for the same day
+        status_rank = {"completed": 3, "pending": 2, "snoozed": 2, "missed": 1}
+        grouped_by_task: dict[uuid.UUID, List[TaskInstance]] = {}
+        for inst in raw_instances:
+            grouped_by_task.setdefault(inst.task_id, []).append(inst)
+
+        instances: List[TaskInstance] = []
+        for task_id_key, group in grouped_by_task.items():
+            if len(group) == 1:
+                instances.append(group[0])
+            else:
+                group.sort(
+                    key=lambda x: (
+                        status_rank.get(str(x.status), 0),
+                        x.scheduled_for or datetime.min.replace(tzinfo=timezone.utc),
+                    ),
+                    reverse=True,
+                )
+                instances.append(group[0])
+
+        instances.sort(
+            key=lambda x: x.scheduled_for or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
         result: List[TaskInstanceOut] = []
         for inst in instances:

@@ -588,7 +588,22 @@ export function ParentHomePage() {
     GreetingIcon = Coffee;
   }
 
-  const pendingItems = todayTasks
+  const uniqueTodayTasks = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof todayTasks = [];
+    const statusRank: Record<string, number> = { completed: 3, pending: 2, snoozed: 2, missed: 1 };
+    const sorted = [...todayTasks].sort((a, b) => (statusRank[b.status] || 0) - (statusRank[a.status] || 0));
+    for (const t of sorted) {
+      const key = t.taskId || t.task_id || t.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(t);
+      }
+    }
+    return result;
+  }, [todayTasks]);
+
+  const pendingItems = uniqueTodayTasks
     .filter(t => t.status === 'pending' || t.status === 'snoozed')
     .map(t => {
       const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
@@ -815,6 +830,25 @@ export function ParentTodayPage() {
     refetchInterval: 10000,
   });
 
+  const uniqueTasks = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof tasks = [];
+    const statusRank: Record<string, number> = { completed: 3, pending: 2, snoozed: 2, missed: 1 };
+    const sorted = [...tasks].sort((a, b) => (statusRank[b.status] || 0) - (statusRank[a.status] || 0));
+    for (const t of sorted) {
+      const key = t.taskId || t.task_id || t.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(t);
+      }
+    }
+    return result.sort((a, b) => {
+      const ma = parseTimeStringToMinutes(a.scheduled_time || a.time) ?? 0;
+      const mb = parseTimeStringToMinutes(b.scheduled_time || b.time) ?? 0;
+      return ma - mb;
+    });
+  }, [tasks]);
+
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 
   return (
@@ -826,7 +860,7 @@ export function ParentTodayPage() {
       </div>
 
       <div className="mt-8 space-y-3">
-        {tasks.length ? tasks.map(t => {
+        {uniqueTasks.length ? uniqueTasks.map(t => {
           const parentStatus = t.status;
           const startM = parseTimeStringToMinutes(t.scheduled_time || t.time) ?? 9 * 60;
           const endM = parseTimeStringToMinutes(t.scheduled_end_time || t.endTime) ?? (startM + 60);
